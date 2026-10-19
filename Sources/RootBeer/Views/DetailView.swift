@@ -30,7 +30,11 @@ private struct PackageDetail: View {
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
                         HStack(spacing: 4) {
-                            if package.isDependency { Badge(text: "dependency", color: .gray) }
+                            if model.isUnused(package) {
+                                Badge(text: "unused", color: .purple)
+                            } else if package.isDependency {
+                                Badge(text: "dependency", color: .gray)
+                            }
                             if package.isOutdated { Badge(text: "outdated", color: .orange) }
                         }
                     }
@@ -43,6 +47,19 @@ private struct PackageDetail: View {
                     Button("Uninstall…", role: .destructive) { model.requestUninstall(package) }
                 }
                 .disabled(model.isBusy)
+
+                if model.isUnused(package) {
+                    Label {
+                        Text("Installed as a dependency, but nothing installed needs it now. `brew autoremove --dry-run` lists it as unneeded. Uninstall… shows exactly what would be removed before anything runs.")
+                            .fixedSize(horizontal: false, vertical: true)
+                    } icon: {
+                        Image(systemName: "leaf").foregroundStyle(.purple)
+                    }
+                    .font(.callout)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.purple.opacity(0.08), in: .rect(cornerRadius: 8))
+                }
 
                 if let desc = package.desc {
                     Text(desc)

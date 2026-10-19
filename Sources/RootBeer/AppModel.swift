@@ -7,6 +7,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
     case formulae = "Formulae"
     case casks = "Casks"
     case outdated = "Outdated"
+    case unused = "Unused"
 
     var id: Self { self }
 
@@ -16,15 +17,17 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .formulae: "terminal"
         case .casks: "macwindow"
         case .outdated: "arrow.up.circle"
+        case .unused: "leaf"
         }
     }
 
-    func includes(_ package: Package) -> Bool {
+    func includes(_ package: Package, unused: Set<Package.ID>) -> Bool {
         switch self {
         case .all: true
         case .formulae: package.kind == .formula
         case .casks: package.kind == .cask
         case .outdated: package.isOutdated
+        case .unused: unused.contains(package.id)
         }
     }
 }
@@ -117,6 +120,10 @@ final class AppModel {
     private(set) var isLoading = false
     private(set) var loadError: String?
     private(set) var uses: [String: UsesState] = [:]
+    /// Formulae `brew autoremove --dry-run` would remove: installed as dependencies, needed by nothing now.
+    private(set) var unusedIDs: Set<Package.ID> = []
+    /// Set when the dry run failed; the Unused section then can't be trusted.
+    private(set) var unusedError: String?
     private(set) var inventoryLoadedAt: Date?
 
     private(set) var log: [LogEntry] = []
@@ -158,14 +165,16 @@ final class AppModel {
     var outdatedPackages: [Package] { inventory.packages.filter(\.isOutdated) }
 
     func count(for item: SidebarItem) -> Int {
-        inventory.packages.count(where: item.includes)
+        inventory.packages.count { item.includes($0, unused: unusedIDs) }
     }
+
+    func isUnused(_ package: Package) -> Bool { unusedIDs.contains(package.id) }
 
     var visiblePackages: [Package] {
         let item = sidebarSelection ?? .all
         let query = searchText.trimmingCharacters(in: .whitespaces)
         return inventory.packages.filter { package in
-            item.includes(package) && (query.isEmpty
+            item.includes(package, unused: unusedIDs) && (query.isEmpty
                 || package.name.localizedCaseInsensitiveContains(query)
                 || package.displayName.localizedCaseInsensitiveContains(query)
                 || (package.desc?.localizedCaseInsensitiveContains(query) ?? false))
@@ -189,13 +198,27 @@ final class AppModel {
             inventoryLoadedAt = Date()
             uses = [:]
             loadError = nil
-            RootBeerLog.info("loaded \(count(for: .formulae)) formulae, \(count(for: .casks)) casks, \(count(for: .outdated)) outdated")
+            await loadUnused(runner)
+            RootBeerLog.info("loaded \(count(for: .formulae)) formulae, \(count(for: .casks)) casks, \(count(for: .outdated)) outdated, \(count(for: .unused)) unused")
             if let selectedID, !inventory.packages.contains(where: { $0.id == selectedID }) {
                 self.selectedID = nil
             }
         } catch {
             loadError = error.localizedDescription
             RootBeerLog.info("failed to load packages: \(error.localizedDescription)")
+        }
+    }
+
+    /// Asks brew which formulae it considers unneeded. A failure here doesn't fail the reload;
+    /// the Unused section shows the error instead.
+    private func loadUnused(_ runner: BrewRunner) async {
+        do {
+            unusedIDs = inventory.formulaIDs(named: try await runner.autoremoveDryRun())
+            unusedError = nil
+        } catch {
+            unusedIDs = []
+            unusedError = error.localizedDescription
+            RootBeerLog.info("couldn't list unused formulae: \(error.localizedDescription)")
         }
     }
 

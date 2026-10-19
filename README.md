@@ -35,6 +35,7 @@ swift test
 
 - **Browse:** a sidebar with All, Formulae, Casks and Outdated, each with a count, and a searchable grid of cards. Casks use their app's icon from `/Applications` or `~/Applications`; everything else uses an SF Symbol. Cards show *dependency* and *outdated* badges.
 - **Details:** description, homepage, tap, dependencies, and what depends on the package (`brew uses --installed`).
+- **Unused:** a sidebar section listing what `brew autoremove --dry-run` says nothing needs any more, for example old libraries left behind after an upgrade. Remove them one at a time with Uninstall; there's deliberately no "remove all".
 - **Update Homebrew:** runs `brew update`.
 - **Upgrade:** both one package and Upgrade All open a confirmation first. It shows old and new versions, when the list was loaded, and a reminder to run Update Homebrew first if the data may be stale.
 - **Uninstall:** casks run `brew uninstall --cask NAME`, never `--zap`. Formulae open a plan, described below.

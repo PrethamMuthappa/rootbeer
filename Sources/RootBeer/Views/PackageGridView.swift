@@ -11,6 +11,14 @@ struct PackageGridView: View {
         Group {
             if let error = model.loadError, model.inventory.packages.isEmpty {
                 ContentUnavailableView("Couldn't load packages", systemImage: "exclamationmark.triangle", description: Text(error))
+            } else if model.sidebarSelection == .unused, let error = model.unusedError {
+                ContentUnavailableView("Couldn't check for unused packages", systemImage: "exclamationmark.triangle", description: Text(error))
+            } else if model.sidebarSelection == .unused, packages.isEmpty, model.searchText.isEmpty, !model.isLoading {
+                ContentUnavailableView(
+                    "Nothing unused",
+                    systemImage: "leaf",
+                    description: Text("`brew autoremove --dry-run` doesn't list any formulae.")
+                )
             } else if packages.isEmpty && !model.isLoading {
                 ContentUnavailableView(
                     model.searchText.isEmpty ? "Nothing here" : "No matches",
@@ -20,7 +28,7 @@ struct PackageGridView: View {
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 12) {
                         ForEach(packages) { package in
-                            PackageCard(package: package, isSelected: package.id == model.selectedID)
+                            PackageCard(package: package, isSelected: package.id == model.selectedID, isUnused: model.isUnused(package))
                                 .onTapGesture { model.selectedID = package.id }
                         }
                     }
@@ -44,6 +52,7 @@ struct PackageGridView: View {
 struct PackageCard: View {
     let package: Package
     let isSelected: Bool
+    let isUnused: Bool
 
     var body: some View {
         VStack(spacing: 6) {
@@ -57,7 +66,11 @@ struct PackageCard: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             HStack(spacing: 4) {
-                if package.isDependency { Badge(text: "dependency", color: .gray) }
+                if isUnused {
+                    Badge(text: "unused", color: .purple)
+                } else if package.isDependency {
+                    Badge(text: "dependency", color: .gray)
+                }
                 if package.isOutdated { Badge(text: "outdated", color: .orange) }
             }
             .frame(height: 16)

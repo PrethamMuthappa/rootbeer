@@ -97,3 +97,10 @@ private func inventory() throws -> Inventory {
         == ["HOMEBREW_NO_AUTOREMOVE", "HOMEBREW_NO_AUTO_UPDATE", "HOMEBREW_NO_COLOR", "HOMEBREW_NO_EMOJI",
             "HOMEBREW_NO_ENV_HINTS", "HOMEBREW_NO_INSTALL_CLEANUP"])
 }
+
+@Test func mapsAutoremoveNamesToFormulae() throws {
+    let inventory = try inventory()
+    // Short names, a tap full name that doesn't exist here, and a cask token (never a formula).
+    let ids = inventory.formulaIDs(named: ["yyjson", "user/tap/missing", "claudebar"])
+    #expect(ids == ["formula:yyjson"])
+}

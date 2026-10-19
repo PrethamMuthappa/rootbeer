@@ -40,6 +40,13 @@ public struct Inventory: Sendable {
 
     public static let empty = Inventory(packages: [])
 
+    /// IDs of the installed formulae named in `names`, which may be short or full ("user/tap/foo") names,
+    /// as `brew autoremove --dry-run` prints full names.
+    public func formulaIDs(named names: [String]) -> Set<Package.ID> {
+        let wanted = Set(names)
+        return Set(packages.filter { $0.kind == .formula && (wanted.contains($0.fullName) || wanted.contains($0.name)) }.map(\.id))
+    }
+
     public static func parse(info: Data, outdated: Data) throws -> Inventory {
         let raw = try JSONDecoder().decode(RawInfo.self, from: info)
         let late = try JSONDecoder().decode(RawOutdated.self, from: outdated)
