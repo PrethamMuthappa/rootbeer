@@ -261,8 +261,8 @@ private func plan(
 @Test func permissionFixCommandIsQuoted() {
     let runner = BrewRunner(brewURL: URL(fileURLWithPath: "/opt/homebrew/bin/brew"))
     #expect(runner.prefix == "/opt/homebrew")
-    #expect(runner.permissionFixCommand(for: ["/opt/homebrew/Cellar/python@3.14/3.14.7"], user: "pretham")
-        == "sudo chown -R pretham:admin /opt/homebrew/Cellar/python@3.14/3.14.7")
-    #expect(runner.permissionFixCommand(for: ["/opt/homebrew/Cellar/a b/1"], user: "pretham")
-        == "sudo chown -R pretham:admin '/opt/homebrew/Cellar/a b/1'")
+    #expect(runner.permissionFixCommand(for: ["/opt/homebrew/Cellar/python@3.14/3.14.7"], user: "user")
+        == "sudo chown -R user:admin /opt/homebrew/Cellar/python@3.14/3.14.7")
+    #expect(runner.permissionFixCommand(for: ["/opt/homebrew/Cellar/a b/1"], user: "user")
+        == "sudo chown -R user:admin '/opt/homebrew/Cellar/a b/1'")
 }

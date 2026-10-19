@@ -3,7 +3,8 @@ import Testing
 @testable import RootBeerCore
 
 /// Fixtures are trimmed copies of real `brew info --installed --json=v2` / `brew outdated --json=v2`
-/// output from this machine (Homebrew 7.0.9).
+/// output (Homebrew 7.0.9). The cask is anonymized as `example/tap/examplebar` with its JSON shape
+/// unchanged, and install times are fixed.
 private func fixture(_ name: String) throws -> Data {
     let url = try #require(Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures"))
     return try Data(contentsOf: url)
@@ -15,7 +16,7 @@ private func inventory() throws -> Inventory {
 
 @Test func parsesFormulaeAndCasks() throws {
     let packages = try inventory().packages
-    #expect(packages.map(\.name) == ["c-ares", "claudebar", "fastfetch", "libuv", "yyjson"])
+    #expect(packages.map(\.name) == ["c-ares", "examplebar", "fastfetch", "libuv", "yyjson"])
     #expect(packages.filter { $0.kind == .formula }.count == 4)
     #expect(packages.filter { $0.kind == .cask }.count == 1)
 }
@@ -43,21 +44,21 @@ private func inventory() throws -> Inventory {
     #expect(cares.isOutdated)
     #expect(cares.installedVersion == "1.34.6")
     #expect(cares.latestVersion == "1.34.8")
-    let claudebar = try #require(packages.first { $0.name == "claudebar" })
-    #expect(!claudebar.isOutdated)
-    #expect(claudebar.latestVersion == nil)
+    let examplebar = try #require(packages.first { $0.name == "examplebar" })
+    #expect(!examplebar.isOutdated)
+    #expect(examplebar.latestVersion == nil)
 }
 
 @Test func parsesCaskFields() throws {
     let cask = try #require(try inventory().packages.first { $0.kind == .cask })
-    #expect(cask.name == "claudebar")
-    #expect(cask.fullName == "gautham-v/tap/claudebar")
-    #expect(cask.displayName == "Claudebar")
+    #expect(cask.name == "examplebar")
+    #expect(cask.fullName == "example/tap/examplebar")
+    #expect(cask.displayName == "Examplebar")
     #expect(cask.installedVersion == "0.2.0")
     #expect(cask.installedOnRequest)
     #expect(!cask.isDependency)
     // Top-level `target` first, then the bare bundle name.
-    #expect(cask.appNames == ["/Applications/Claudebar.app", "Claudebar.app"])
+    #expect(cask.appNames == ["/Applications/Examplebar.app", "Examplebar.app"])
 }
 
 // Synthetic: this machine has no outdated casks and no `[src, {target:}]` app artifacts,
@@ -101,6 +102,6 @@ private func inventory() throws -> Inventory {
 @Test func mapsAutoremoveNamesToFormulae() throws {
     let inventory = try inventory()
     // Short names, a tap full name that doesn't exist here, and a cask token (never a formula).
-    let ids = inventory.formulaIDs(named: ["yyjson", "user/tap/missing", "claudebar"])
+    let ids = inventory.formulaIDs(named: ["yyjson", "user/tap/missing", "examplebar"])
     #expect(ids == ["formula:yyjson"])
 }

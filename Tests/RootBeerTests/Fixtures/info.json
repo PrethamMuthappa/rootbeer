@@ -73,7 +73,7 @@
      "used_options": [],
      "built_as_bottle": true,
      "poured_from_bottle": true,
-     "time": 1766991577,
+     "time": 1700000000,
      "runtime_dependencies": [],
      "installed_on_request": false
     }
@@ -190,7 +190,7 @@
      "used_options": [],
      "built_as_bottle": true,
      "poured_from_bottle": true,
-     "time": 1764516695,
+     "time": 1700000000,
      "runtime_dependencies": [
       {
        "full_name": "yyjson",
@@ -303,7 +303,7 @@
      "used_options": [],
      "built_as_bottle": true,
      "poured_from_bottle": true,
-     "time": 1764569620,
+     "time": 1700000000,
      "runtime_dependencies": [],
      "installed_on_request": false
     }
@@ -405,7 +405,7 @@
      "used_options": [],
      "built_as_bottle": true,
      "poured_from_bottle": true,
-     "time": 1764516695,
+     "time": 1700000000,
      "runtime_dependencies": [],
      "installed_on_request": false
     }
@@ -437,49 +437,49 @@
  ],
  "casks": [
   {
-   "token": "claudebar",
-   "full_token": "gautham-v/tap/claudebar",
+   "token": "examplebar",
+   "full_token": "example/tap/examplebar",
    "old_tokens": [],
-   "tap": "gautham-v/tap",
+   "tap": "example/tap",
    "name": [
-    "Claudebar"
+    "Examplebar"
    ],
-   "desc": "Claude usage limits in the menu bar",
-   "homepage": "https://github.com/gautham-v/claudebar",
-   "url": "https://github.com/gautham-v/claudebar/releases/download/v0.2.0/Claudebar-0.2.0.zip",
+   "desc": "Example menu bar app",
+   "homepage": "https://github.com/example/examplebar",
+   "url": "https://github.com/example/examplebar/releases/download/v0.2.0/Examplebar-0.2.0.zip",
    "url_specs": {},
    "version": "0.2.0",
    "autobump": true,
    "no_autobump_message": null,
    "skip_livecheck": false,
    "installed": "0.2.0",
-   "installed_time": 1792191969,
+   "installed_time": 1700000000,
    "bundle_version": "1",
    "bundle_short_version": "0.2.0",
    "pinned": false,
    "pinned_version": null,
    "outdated": false,
-   "sha256": "3dcd6a177893936c4385173f3b465c9fda7fa382f2edfd221155f7e2c080421b",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
    "artifacts": [
     {
      "uninstall": [
       {
-       "quit": "com.gauthamv.claudebar"
+       "quit": "com.example.examplebar"
       }
      ]
     },
     {
      "app": [
-      "Claudebar.app"
+      "Examplebar.app"
      ],
-     "target": "/Applications/Claudebar.app"
+     "target": "/Applications/Examplebar.app"
     },
     {
      "zap": [
       {
        "trash": [
-        "~/.config/claudebar",
-        "~/Library/Caches/claudebar"
+        "~/.config/examplebar",
+        "~/Library/Caches/examplebar"
        ]
       }
      ]
@@ -510,11 +510,11 @@
    "disable_replacement_formula": null,
    "disable_replacement_cask": null,
    "disable_args": null,
-   "tap_git_head": "bc0406488b63f0a2436bb2b63b3b27bf36aa52ca",
+   "tap_git_head": "0000000000000000000000000000000000000000",
    "languages": [],
-   "ruby_source_path": "Casks/claudebar.rb",
+   "ruby_source_path": "Casks/examplebar.rb",
    "ruby_source_checksum": {
-    "sha256": "c7d1aca9c69c533d4fffbd68d85f198f5d4cdfad5eb2689d730fefd746dce307"
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
    }
   }
  ]
