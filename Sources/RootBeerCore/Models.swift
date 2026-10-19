@@ -6,7 +6,8 @@ public enum PackageKind: String, Sendable, Hashable {
 }
 
 public struct Package: Identifiable, Hashable, Sendable {
-    public var id: String { "\(kind.rawValue):\(name)" }
+    public var id: String { Package.id(kind: kind, name: name) }
+    public static func id(kind: PackageKind, name: String) -> String { "\(kind.rawValue):\(name)" }
 
     public let kind: PackageKind
     public let name: String

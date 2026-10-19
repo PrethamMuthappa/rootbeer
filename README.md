@@ -58,7 +58,7 @@ The commands run in this order:
 2. `brew autoremove --dry-run` as a cross-check.
 3. `brew uninstall --formula NAME` for each planned dependency that brew also lists, one at a time. Dependencies brew doesn't list are skipped and named in the log.
 
-Plain `brew autoremove` is never run, because it would remove unrelated orphans.
+Plain `brew autoremove` is never run, because it would remove unrelated orphans. RootBeer also sets `HOMEBREW_NO_AUTOREMOVE=1`, so `brew uninstall` doesn't run one implicitly.
 
 ## Safety
 
@@ -67,6 +67,8 @@ Plain `brew autoremove` is never run, because it would remove unrelated orphans.
 - **Explicit environment:** every brew process gets a fixed environment with a full `PATH`, since apps launched from Finder don't inherit your shell's. That environment also sets:
   - `HOMEBREW_NO_AUTO_UPDATE=1`: brew never updates itself behind your back. Use **Update Homebrew**.
   - `HOMEBREW_NO_INSTALL_CLEANUP=1`: upgrades keep old versions until you run **Cleanup**.
+  - `HOMEBREW_NO_AUTOREMOVE=1`: since Homebrew 4.3, `brew uninstall` and `brew cleanup` otherwise run a system-wide `brew autoremove` afterwards, which removes unrelated orphans.
+- **Result checked against reality:** after every operation, RootBeer reloads the package list and compares it with the list from before. Anything brew removed without being asked appears in an orange warning, and newly installed packages are listed.
 - **No terminal input:** stdin is `/dev/null`, so a password prompt fails immediately instead of hanging.
 
 Never used: `--zap`, plain `brew autoremove`, `--ignore-dependencies`, `--force`, `--greedy`.

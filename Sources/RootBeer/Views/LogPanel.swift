@@ -93,6 +93,12 @@ struct OutcomeBanner: View {
             Spacer(minLength: 0)
         }
         .padding(10)
-        .background((outcome.succeeded ? Color.green : Color.red).opacity(0.12))
+        .background(tint.opacity(0.12))
+    }
+
+    /// Orange when brew changed more than RootBeer asked for, even if every command exited 0.
+    private var tint: Color {
+        if !outcome.succeeded { return .red }
+        return outcome.unexpectedlyRemoved.isEmpty ? .green : .orange
     }
 }

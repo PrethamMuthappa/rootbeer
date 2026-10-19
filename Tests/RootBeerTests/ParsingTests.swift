@@ -90,8 +90,10 @@ private func inventory() throws -> Inventory {
 @Test func brewEnvironmentIsExplicit() {
     let env = BrewLocator.environment(for: URL(fileURLWithPath: "/opt/homebrew/bin/brew"))
     #expect(env["HOMEBREW_NO_AUTO_UPDATE"] == "1")
+    #expect(env["HOMEBREW_NO_AUTOREMOVE"] == "1")
     #expect(env["PATH"]?.hasPrefix("/opt/homebrew/bin:/opt/homebrew/sbin:") == true)
     // Built from an allowlist, so no inherited HOMEBREW_* variable can switch auto-update back on.
     #expect(env.keys.filter { $0.hasPrefix("HOMEBREW_") }.sorted()
-        == ["HOMEBREW_NO_AUTO_UPDATE", "HOMEBREW_NO_COLOR", "HOMEBREW_NO_EMOJI", "HOMEBREW_NO_ENV_HINTS", "HOMEBREW_NO_INSTALL_CLEANUP"])
+        == ["HOMEBREW_NO_AUTOREMOVE", "HOMEBREW_NO_AUTO_UPDATE", "HOMEBREW_NO_COLOR", "HOMEBREW_NO_EMOJI",
+            "HOMEBREW_NO_ENV_HINTS", "HOMEBREW_NO_INSTALL_CLEANUP"])
 }

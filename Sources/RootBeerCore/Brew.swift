@@ -20,6 +20,7 @@ import Foundation
 //   brew cleanup                           .cleanup
 //
 // Never used: --zap, plain `brew autoremove`, --ignore-dependencies, --force, --greedy.
+// HOMEBREW_NO_AUTOREMOVE=1 stops `uninstall` and `cleanup` from running an implicit autoremove.
 
 public enum BrewError: Error, LocalizedError, Sendable {
     case brewNotFound
@@ -126,6 +127,9 @@ public enum BrewLocator {
         env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
         // Likewise, upgrades don't clean up old versions behind your back; that's the Cleanup button.
         env["HOMEBREW_NO_INSTALL_CLEANUP"] = "1"
+        // Since Homebrew 4.3, `brew uninstall` and `brew cleanup` run a system-wide `brew autoremove`
+        // afterwards, removing unrelated orphans. RootBeer removes dependencies itself, one by one.
+        env["HOMEBREW_NO_AUTOREMOVE"] = "1"
         env["HOMEBREW_NO_ENV_HINTS"] = "1"
         env["HOMEBREW_NO_EMOJI"] = "1"
         env["HOMEBREW_NO_COLOR"] = "1"

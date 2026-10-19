@@ -46,8 +46,10 @@ struct LogEntry: Identifiable {
 struct Outcome {
     let title: String
     let succeeded: Bool
-    let detail: String
+    var detail: String
     var terminalCommand: String?
+    /// Packages that disappeared without RootBeer asking brew to uninstall them.
+    var unexpectedlyRemoved: [String] = []
 }
 
 /// What the user saw when they opened a confirmation, so the confirmation can say how fresh it is.
@@ -122,6 +124,8 @@ final class AppModel {
     private(set) var outcome: Outcome?
     private var lastSuccessfulUpdate: Date?
     private var nextLogID = 0
+    /// Packages RootBeer explicitly uninstalled during the current operation.
+    private var uninstalledThisOperation: Set<Package.ID> = []
 
     var sidebarSelection: SidebarItem? = .all
     var searchText = ""
@@ -382,20 +386,40 @@ final class AppModel {
 
     private var lastFailure: BrewResult?
 
-    /// Marks the app busy, runs `body`, records the outcome, then reloads the package list.
+    /// Marks the app busy, runs `body`, reloads the package list, and checks what actually changed
+    /// before reporting the outcome, so the report reflects what's installed rather than the plan.
     private func operation(_ title: String, _ body: () async -> Outcome) async {
         guard runner != nil, !isBusy else { return }
         activeOperation = title
         outcome = nil
         lastFailure = nil
+        uninstalledThisOperation = []
         showLog = true
         appendLog(.info, "── \(title) ──\n")
-        let result = await body()
+        let before = Dictionary(inventory.packages.map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a })
+        var result = await body()
+
+        activeOperation = nil
+        await reload()
+        let after = Set(inventory.packages.map(\.id))
+        if loadError == nil {
+            let removed = Set(before.keys).subtracting(after)
+            let unexpected = removed.subtracting(uninstalledThisOperation).compactMap { before[$0] }.sorted()
+            let added = after.subtracting(before.keys).compactMap { id in inventory.packages.first { $0.id == id }?.name }.sorted()
+            if !unexpected.isEmpty {
+                result.unexpectedlyRemoved = unexpected
+                result.detail += " ⚠︎ brew also removed \(unexpected.joined(separator: ", ")), which RootBeer didn't ask it to uninstall."
+            }
+            if !added.isEmpty {
+                result.detail += " Newly installed: \(added.joined(separator: ", "))."
+            }
+        } else {
+            result.detail += " ⚠︎ Couldn't reload the package list to verify the result."
+        }
+
         outcome = result
         appendLog(result.succeeded ? .success : .failure, (result.succeeded ? "✓ " : "✗ ") + result.detail)
         RootBeerLog.info("\(title): \(result.succeeded ? "succeeded" : "FAILED") – \(result.detail)")
-        activeOperation = nil
-        await reload()
     }
 
     /// Runs one action, streaming its output into the log. Returns nil if brew couldn't be started.
@@ -417,6 +441,9 @@ final class AppModel {
         if let result {
             appendLog(result.succeeded ? .success : .failure, "exit status \(result.exitCode)")
             if !result.succeeded { lastFailure = result }
+            if result.succeeded, case .uninstall(let kind, let name) = action {
+                uninstalledThisOperation.insert(Package.id(kind: kind, name: name))
+            }
         }
         return result
     }
