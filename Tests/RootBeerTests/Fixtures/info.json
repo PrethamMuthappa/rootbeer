@@ -1,0 +1,521 @@
+{
+ "formulae": [
+  {
+   "name": "c-ares",
+   "full_name": "c-ares",
+   "tap": "homebrew/core",
+   "oldnames": [],
+   "aliases": [],
+   "versioned_formulae": [],
+   "desc": "Asynchronous DNS library",
+   "license": "MIT",
+   "homepage": "https://c-ares.org/",
+   "versions": {
+    "stable": "1.34.8",
+    "head": "HEAD",
+    "bottle": true
+   },
+   "urls": {
+    "stable": {
+     "url": "https://github.com/c-ares/c-ares/releases/download/v1.34.8/c-ares-1.34.8.tar.gz",
+     "tag": null,
+     "revision": null,
+     "using": null,
+     "checksum": "c222b6d681096f9444d2c4863d2c1174019e27cacca0a4a5c114d36dd7d7bf78"
+    },
+    "head": {
+     "url": "https://github.com/c-ares/c-ares.git",
+     "branch": "main",
+     "using": null
+    }
+   },
+   "patches": [],
+   "revision": 0,
+   "version_scheme": 0,
+   "compatibility_version": null,
+   "autobump": true,
+   "no_autobump_message": null,
+   "skip_livecheck": false,
+   "bottle": {
+    "stable": {
+     "rebuild": 0,
+     "root_url": "https://ghcr.io/v2/homebrew/core",
+     "files": {
+      "arm64_tahoe": {
+       "cellar": ":any",
+       "url": "https://ghcr.io/v2/homebrew/core/c-ares/blobs/sha256:44bcc2e67b97daa265e168281875129161ddbbc964ab16ec0db1846c289cc376",
+       "sha256": "44bcc2e67b97daa265e168281875129161ddbbc964ab16ec0db1846c289cc376"
+      }
+     }
+    }
+   },
+   "pour_bottle_only_if": null,
+   "keg_only": false,
+   "keg_only_reason": null,
+   "options": [],
+   "build_dependencies": [
+    "cmake"
+   ],
+   "dependencies": [],
+   "test_dependencies": [],
+   "recommended_dependencies": [],
+   "optional_dependencies": [],
+   "uses_from_macos": [],
+   "uses_from_macos_bounds": [],
+   "requirements": [],
+   "conflicts_with": [],
+   "conflicts_with_reasons": [],
+   "link_overwrite": [],
+   "caveats": null,
+   "installed": [
+    {
+     "version": "1.34.6",
+     "used_options": [],
+     "built_as_bottle": true,
+     "poured_from_bottle": true,
+     "time": 1766991577,
+     "runtime_dependencies": [],
+     "installed_on_request": false
+    }
+   ],
+   "linked_keg": "1.34.6",
+   "pinned": false,
+   "outdated": true,
+   "deprecated": false,
+   "deprecation_date": null,
+   "deprecation_reason": null,
+   "deprecation_replacement_formula": null,
+   "deprecation_replacement_cask": null,
+   "deprecate_args": null,
+   "disabled": false,
+   "disable_date": null,
+   "disable_reason": null,
+   "disable_replacement_formula": null,
+   "disable_replacement_cask": null,
+   "disable_args": null,
+   "post_install_steps": [],
+   "post_install_defined": false,
+   "service": null,
+   "tap_git_head": "7cd10312e305e362ba77453ca06b15ddf45a92ea",
+   "ruby_source_path": "Formula/c/c-ares.rb",
+   "ruby_source_checksum": {
+    "sha256": "fdcab3038af1e615e42157bcda8145db6581e4d24cde38e2de2c3901300bc4d4"
+   }
+  },
+  {
+   "name": "fastfetch",
+   "full_name": "fastfetch",
+   "tap": "homebrew/core",
+   "oldnames": [],
+   "aliases": [],
+   "versioned_formulae": [],
+   "desc": "Like neofetch, but much faster because written mostly in C",
+   "license": "MIT",
+   "homepage": "https://github.com/fastfetch-cli/fastfetch",
+   "versions": {
+    "stable": "2.70.0",
+    "head": "HEAD",
+    "bottle": true
+   },
+   "urls": {
+    "stable": {
+     "url": "https://github.com/fastfetch-cli/fastfetch/archive/refs/tags/2.70.0.tar.gz",
+     "tag": null,
+     "revision": null,
+     "using": null,
+     "checksum": "8aa01bd3faff2be1d94f231d76489ce6d9f781f51f6e93eafe82359d6d8669af"
+    },
+    "head": {
+     "url": "https://github.com/fastfetch-cli/fastfetch.git",
+     "branch": "dev",
+     "using": null
+    }
+   },
+   "patches": [],
+   "revision": 0,
+   "version_scheme": 0,
+   "compatibility_version": null,
+   "autobump": true,
+   "no_autobump_message": null,
+   "skip_livecheck": false,
+   "bottle": {
+    "stable": {
+     "rebuild": 0,
+     "root_url": "https://ghcr.io/v2/homebrew/core",
+     "files": {
+      "arm64_tahoe": {
+       "cellar": "/opt/homebrew/Cellar",
+       "url": "https://ghcr.io/v2/homebrew/core/fastfetch/blobs/sha256:3edc27580bfe7452f5dc08c7efea35d9deff5ea5de5f507a0f577ec6bf1a91f6",
+       "sha256": "3edc27580bfe7452f5dc08c7efea35d9deff5ea5de5f507a0f577ec6bf1a91f6"
+      }
+     }
+    }
+   },
+   "pour_bottle_only_if": null,
+   "keg_only": false,
+   "keg_only_reason": null,
+   "options": [],
+   "build_dependencies": [
+    "chafa",
+    "cmake",
+    "glib",
+    "imagemagick",
+    "lua",
+    "pkgconf",
+    "python@3.15",
+    "vulkan-loader"
+   ],
+   "dependencies": [
+    "yyjson"
+   ],
+   "test_dependencies": [],
+   "recommended_dependencies": [],
+   "optional_dependencies": [],
+   "uses_from_macos": [
+    {
+     "sqlite": "build"
+    }
+   ],
+   "uses_from_macos_bounds": [
+    {}
+   ],
+   "requirements": [],
+   "conflicts_with": [],
+   "conflicts_with_reasons": [],
+   "link_overwrite": [],
+   "caveats": null,
+   "installed": [
+    {
+     "version": "2.55.1",
+     "used_options": [],
+     "built_as_bottle": true,
+     "poured_from_bottle": true,
+     "time": 1764516695,
+     "runtime_dependencies": [
+      {
+       "full_name": "yyjson",
+       "version": "0.12.0",
+       "revision": 0,
+       "bottle_rebuild": 1,
+       "pkg_version": "0.12.0",
+       "declared_directly": true
+      }
+     ],
+     "installed_on_request": true
+    }
+   ],
+   "linked_keg": "2.55.1",
+   "pinned": false,
+   "outdated": true,
+   "deprecated": false,
+   "deprecation_date": null,
+   "deprecation_reason": null,
+   "deprecation_replacement_formula": null,
+   "deprecation_replacement_cask": null,
+   "deprecate_args": null,
+   "disabled": false,
+   "disable_date": null,
+   "disable_reason": null,
+   "disable_replacement_formula": null,
+   "disable_replacement_cask": null,
+   "disable_args": null,
+   "post_install_steps": [],
+   "post_install_defined": false,
+   "service": null,
+   "tap_git_head": "7cd10312e305e362ba77453ca06b15ddf45a92ea",
+   "ruby_source_path": "Formula/f/fastfetch.rb",
+   "ruby_source_checksum": {
+    "sha256": "83ef218bd0bb6671842ac7ee4cc03ceb678ec84b2403caffe30ddc0ca5ffd2fe"
+   }
+  },
+  {
+   "name": "libuv",
+   "full_name": "libuv",
+   "tap": "homebrew/core",
+   "oldnames": [],
+   "aliases": [],
+   "versioned_formulae": [],
+   "desc": "Multi-platform support library with a focus on asynchronous I/O",
+   "license": "MIT",
+   "homepage": "https://libuv.org/",
+   "versions": {
+    "stable": "1.53.0",
+    "head": "HEAD",
+    "bottle": true
+   },
+   "urls": {
+    "stable": {
+     "url": "https://dist.libuv.org/dist/v1.53.0/libuv-v1.53.0.tar.gz",
+     "tag": null,
+     "revision": null,
+     "using": null,
+     "checksum": "cb0d6dd2128d5a95bd242c6cc982a24fe608fa93da57b6b4ec763b0018c53e64"
+    },
+    "head": {
+     "url": "https://github.com/libuv/libuv.git",
+     "branch": "v1.x",
+     "using": null
+    }
+   },
+   "patches": [],
+   "revision": 0,
+   "version_scheme": 0,
+   "compatibility_version": null,
+   "autobump": true,
+   "no_autobump_message": null,
+   "skip_livecheck": false,
+   "bottle": {
+    "stable": {
+     "rebuild": 0,
+     "root_url": "https://ghcr.io/v2/homebrew/core",
+     "files": {
+      "arm64_tahoe": {
+       "cellar": ":any",
+       "url": "https://ghcr.io/v2/homebrew/core/libuv/blobs/sha256:76e5d3743160ff4da9a91f35f1e10614ffef9c4aeafb8f44e8e7b07a9bfa32fe",
+       "sha256": "76e5d3743160ff4da9a91f35f1e10614ffef9c4aeafb8f44e8e7b07a9bfa32fe"
+      }
+     }
+    }
+   },
+   "pour_bottle_only_if": null,
+   "keg_only": false,
+   "keg_only_reason": null,
+   "options": [],
+   "build_dependencies": [
+    "cmake",
+    "python-setuptools",
+    "sphinx-doc"
+   ],
+   "dependencies": [],
+   "test_dependencies": [],
+   "recommended_dependencies": [],
+   "optional_dependencies": [],
+   "uses_from_macos": [],
+   "uses_from_macos_bounds": [],
+   "requirements": [],
+   "conflicts_with": [],
+   "conflicts_with_reasons": [],
+   "link_overwrite": [],
+   "caveats": null,
+   "installed": [
+    {
+     "version": "1.51.0",
+     "used_options": [],
+     "built_as_bottle": true,
+     "poured_from_bottle": true,
+     "time": 1764569620,
+     "runtime_dependencies": [],
+     "installed_on_request": false
+    }
+   ],
+   "linked_keg": "1.51.0",
+   "pinned": false,
+   "outdated": true,
+   "deprecated": false,
+   "deprecation_date": null,
+   "deprecation_reason": null,
+   "deprecation_replacement_formula": null,
+   "deprecation_replacement_cask": null,
+   "deprecate_args": null,
+   "disabled": false,
+   "disable_date": null,
+   "disable_reason": null,
+   "disable_replacement_formula": null,
+   "disable_replacement_cask": null,
+   "disable_args": null,
+   "post_install_steps": [],
+   "post_install_defined": false,
+   "service": null,
+   "tap_git_head": "7cd10312e305e362ba77453ca06b15ddf45a92ea",
+   "ruby_source_path": "Formula/lib/libuv.rb",
+   "ruby_source_checksum": {
+    "sha256": "ce98fd5a27fe5e0d9114f0d31507c6735a5784974b4aa0f5a6fa59bece96bf84"
+   }
+  },
+  {
+   "name": "yyjson",
+   "full_name": "yyjson",
+   "tap": "homebrew/core",
+   "oldnames": [],
+   "aliases": [],
+   "versioned_formulae": [],
+   "desc": "High performance JSON library written in ANSI C",
+   "license": "MIT",
+   "homepage": "https://ibireme.github.io/yyjson/doc/doxygen/html/",
+   "versions": {
+    "stable": "0.13.0",
+    "head": "HEAD",
+    "bottle": true
+   },
+   "urls": {
+    "stable": {
+     "url": "https://github.com/ibireme/yyjson/archive/refs/tags/0.13.0.tar.gz",
+     "tag": null,
+     "revision": null,
+     "using": null,
+     "checksum": "34e0f62a2bc11ab20d601e8ca1cc2b2079503aa45119a19133d89d19b94a0fae"
+    },
+    "head": {
+     "url": "https://github.com/ibireme/yyjson.git",
+     "branch": "master",
+     "using": null
+    }
+   },
+   "patches": [],
+   "revision": 0,
+   "version_scheme": 0,
+   "compatibility_version": null,
+   "autobump": true,
+   "no_autobump_message": null,
+   "skip_livecheck": false,
+   "bottle": {
+    "stable": {
+     "rebuild": 0,
+     "root_url": "https://ghcr.io/v2/homebrew/core",
+     "files": {
+      "arm64_tahoe": {
+       "cellar": ":any",
+       "url": "https://ghcr.io/v2/homebrew/core/yyjson/blobs/sha256:653d1e1d0303e93b5471a4a7640f469653b7ca9c642e1568f44fd75bcb207845",
+       "sha256": "653d1e1d0303e93b5471a4a7640f469653b7ca9c642e1568f44fd75bcb207845"
+      }
+     }
+    }
+   },
+   "pour_bottle_only_if": null,
+   "keg_only": false,
+   "keg_only_reason": null,
+   "options": [],
+   "build_dependencies": [
+    "cmake"
+   ],
+   "dependencies": [],
+   "test_dependencies": [],
+   "recommended_dependencies": [],
+   "optional_dependencies": [],
+   "uses_from_macos": [],
+   "uses_from_macos_bounds": [],
+   "requirements": [],
+   "conflicts_with": [],
+   "conflicts_with_reasons": [],
+   "link_overwrite": [],
+   "caveats": null,
+   "installed": [
+    {
+     "version": "0.12.0",
+     "used_options": [],
+     "built_as_bottle": true,
+     "poured_from_bottle": true,
+     "time": 1764516695,
+     "runtime_dependencies": [],
+     "installed_on_request": false
+    }
+   ],
+   "linked_keg": "0.12.0",
+   "pinned": false,
+   "outdated": true,
+   "deprecated": false,
+   "deprecation_date": null,
+   "deprecation_reason": null,
+   "deprecation_replacement_formula": null,
+   "deprecation_replacement_cask": null,
+   "deprecate_args": null,
+   "disabled": false,
+   "disable_date": null,
+   "disable_reason": null,
+   "disable_replacement_formula": null,
+   "disable_replacement_cask": null,
+   "disable_args": null,
+   "post_install_steps": [],
+   "post_install_defined": false,
+   "service": null,
+   "tap_git_head": "7cd10312e305e362ba77453ca06b15ddf45a92ea",
+   "ruby_source_path": "Formula/y/yyjson.rb",
+   "ruby_source_checksum": {
+    "sha256": "6ee015de665c24320066398829a1b562759fb94a89645f07e54e6ebc867753be"
+   }
+  }
+ ],
+ "casks": [
+  {
+   "token": "claudebar",
+   "full_token": "gautham-v/tap/claudebar",
+   "old_tokens": [],
+   "tap": "gautham-v/tap",
+   "name": [
+    "Claudebar"
+   ],
+   "desc": "Claude usage limits in the menu bar",
+   "homepage": "https://github.com/gautham-v/claudebar",
+   "url": "https://github.com/gautham-v/claudebar/releases/download/v0.2.0/Claudebar-0.2.0.zip",
+   "url_specs": {},
+   "version": "0.2.0",
+   "autobump": true,
+   "no_autobump_message": null,
+   "skip_livecheck": false,
+   "installed": "0.2.0",
+   "installed_time": 1792191969,
+   "bundle_version": "1",
+   "bundle_short_version": "0.2.0",
+   "pinned": false,
+   "pinned_version": null,
+   "outdated": false,
+   "sha256": "3dcd6a177893936c4385173f3b465c9fda7fa382f2edfd221155f7e2c080421b",
+   "artifacts": [
+    {
+     "uninstall": [
+      {
+       "quit": "com.gauthamv.claudebar"
+      }
+     ]
+    },
+    {
+     "app": [
+      "Claudebar.app"
+     ],
+     "target": "/Applications/Claudebar.app"
+    },
+    {
+     "zap": [
+      {
+       "trash": [
+        "~/.config/claudebar",
+        "~/Library/Caches/claudebar"
+       ]
+      }
+     ]
+    }
+   ],
+   "caveats": "Turn on \"Launch at login\" from the popover if you want it.\n",
+   "caveats_rosetta": null,
+   "depends_on": {
+    "macos": {
+     ">=": [
+      "13"
+     ]
+    }
+   },
+   "conflicts_with": null,
+   "container": null,
+   "rename": [],
+   "auto_updates": null,
+   "deprecated": false,
+   "deprecation_date": null,
+   "deprecation_reason": null,
+   "deprecation_replacement_formula": null,
+   "deprecation_replacement_cask": null,
+   "deprecate_args": null,
+   "disabled": false,
+   "disable_date": null,
+   "disable_reason": null,
+   "disable_replacement_formula": null,
+   "disable_replacement_cask": null,
+   "disable_args": null,
+   "tap_git_head": "bc0406488b63f0a2436bb2b63b3b27bf36aa52ca",
+   "languages": [],
+   "ruby_source_path": "Casks/claudebar.rb",
+   "ruby_source_checksum": {
+    "sha256": "c7d1aca9c69c533d4fffbd68d85f198f5d4cdfad5eb2689d730fefd746dce307"
+   }
+  }
+ ]
+}

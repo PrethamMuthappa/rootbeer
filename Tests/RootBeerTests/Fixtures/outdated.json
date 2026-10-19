@@ -1,0 +1,41 @@
+{
+ "formulae": [
+  {
+   "name": "c-ares",
+   "installed_versions": [
+    "1.34.6"
+   ],
+   "current_version": "1.34.8",
+   "pinned": false,
+   "pinned_version": null
+  },
+  {
+   "name": "fastfetch",
+   "installed_versions": [
+    "2.55.1"
+   ],
+   "current_version": "2.70.0",
+   "pinned": false,
+   "pinned_version": null
+  },
+  {
+   "name": "libuv",
+   "installed_versions": [
+    "1.51.0"
+   ],
+   "current_version": "1.53.0",
+   "pinned": false,
+   "pinned_version": null
+  },
+  {
+   "name": "yyjson",
+   "installed_versions": [
+    "0.12.0"
+   ],
+   "current_version": "0.13.0",
+   "pinned": false,
+   "pinned_version": null
+  }
+ ],
+ "casks": []
+}
