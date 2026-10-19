@@ -132,6 +132,10 @@ final class AppModel {
     var selectedID: Package.ID?
     var sheet: ActiveSheet?
     var showLog = false
+    /// Height of the log panel; the panel's top edge can be dragged.
+    var logHeight: CGFloat = 300
+    /// The log height when a resize drag began; nil when not dragging.
+    var logDragStartHeight: CGFloat?
 
     private let runner: BrewRunner?
 
