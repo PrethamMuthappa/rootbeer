@@ -8,6 +8,7 @@ struct PackageGridView: View {
 
     var body: some View {
         let packages = model.visiblePackages
+        let item = model.sidebarSelection ?? .all
         Group {
             if let error = model.loadError, model.inventory.packages.isEmpty {
                 ContentUnavailableView("Couldn't load packages", systemImage: "exclamationmark.triangle", description: Text(error))
@@ -20,9 +21,11 @@ struct PackageGridView: View {
                     description: Text("`brew autoremove --dry-run` doesn't list any formulae.")
                 )
             } else if packages.isEmpty && !model.isLoading {
+                let hidden = model.hiddenDependencyCount(for: item)
                 ContentUnavailableView(
                     model.searchText.isEmpty ? "Nothing here" : "No matches",
-                    systemImage: "shippingbox"
+                    systemImage: "shippingbox",
+                    description: hidden > 0 ? Text("Dependencies are hidden. Choose All above to see them.") : nil
                 )
             } else {
                 ScrollView {
@@ -36,6 +39,11 @@ struct PackageGridView: View {
                 }
             }
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if item.supportsRequestedFilter, !model.inventory.packages.isEmpty {
+                RequestedFilterBar(item: item)
+            }
+        }
         .overlay(alignment: .bottom) {
             if let error = model.loadError, !model.inventory.packages.isEmpty {
                 Text(error)
@@ -46,6 +54,38 @@ struct PackageGridView: View {
                     .padding()
             }
         }
+    }
+}
+
+/// All | Installed by me. "Installed by me" hides formulae brew installed only as dependencies.
+private struct RequestedFilterBar: View {
+    @Environment(AppModel.self) private var model
+    let item: SidebarItem
+
+    var body: some View {
+        @Bindable var model = model
+        HStack(spacing: 10) {
+            Picker("Show", selection: $model.showOnlyRequested) {
+                Text("All").tag(false)
+                Text("Installed by me").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+            .help("Installed by me hides packages Homebrew installed only as dependencies of others")
+
+            let hidden = model.hiddenDependencyCount(for: item)
+            if hidden > 0 {
+                Text("\(hidden) \(hidden == 1 ? "dependency" : "dependencies") hidden")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(.bar)
+        .overlay(alignment: .bottom) { Divider() }
     }
 }
 

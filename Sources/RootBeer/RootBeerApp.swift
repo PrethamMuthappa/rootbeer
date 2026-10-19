@@ -22,6 +22,13 @@ struct RootBeerApp: App {
                     .keyboardShortcut("r")
                     .disabled(model.isBusy)
             }
+            CommandGroup(after: .sidebar) {
+                Toggle("Show Only Packages I Installed", isOn: Binding(
+                    get: { model.showOnlyRequested },
+                    set: { model.showOnlyRequested = $0 }
+                ))
+                .keyboardShortcut("d", modifiers: [.command, .shift])
+            }
         }
     }
 }

@@ -34,6 +34,7 @@ swift test
 ## What it does
 
 - **Browse:** a sidebar with All, Formulae, Casks and Outdated, each with a count, and a searchable grid of cards. Casks use their app's icon from `/Applications` or `~/Applications`; everything else uses an SF Symbol. Cards show *dependency* and *outdated* badges.
+- **Installed by me:** a switch above the grid (also View → Show Only Packages I Installed, ⇧⌘D) that hides formulae Homebrew installed only as dependencies. Sidebar counts follow it, and the choice is remembered.
 - **Details:** description, homepage, tap, dependencies, and what depends on the package (`brew uses --installed`).
 - **Unused:** a sidebar section listing what `brew autoremove --dry-run` says nothing needs any more, for example old libraries left behind after an upgrade. Remove them one at a time with Uninstall; there's deliberately no "remove all".
 - **Update Homebrew:** runs `brew update`.

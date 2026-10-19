@@ -21,6 +21,15 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
+    /// Whether the "Installed by me" filter means anything here. Casks are always installed on request,
+    /// and everything in Unused is a dependency.
+    var supportsRequestedFilter: Bool {
+        switch self {
+        case .all, .formulae, .outdated: true
+        case .casks, .unused: false
+        }
+    }
+
     func includes(_ package: Package, unused: Set<Package.ID>) -> Bool {
         switch self {
         case .all: true
@@ -139,6 +148,11 @@ final class AppModel {
     var selectedID: Package.ID?
     var sheet: ActiveSheet?
     var showLog = false
+    /// Hide packages brew installed only as dependencies. Remembered between launches.
+    var showOnlyRequested = UserDefaults.standard.bool(forKey: AppModel.onlyRequestedKey) {
+        didSet { UserDefaults.standard.set(showOnlyRequested, forKey: AppModel.onlyRequestedKey) }
+    }
+    private static let onlyRequestedKey = "RootBeer.showOnlyRequested"
     /// Height of the log panel; the panel's top edge can be dragged.
     var logHeight: CGFloat = 300
     /// The log height when a resize drag began; nil when not dragging.
@@ -164,8 +178,20 @@ final class AppModel {
 
     var outdatedPackages: [Package] { inventory.packages.filter(\.isOutdated) }
 
+    /// Counts what the grid would show for `item`, so sidebar numbers follow the filter.
     func count(for item: SidebarItem) -> Int {
-        inventory.packages.count { item.includes($0, unused: unusedIDs) }
+        inventory.packages.count { shows($0, in: item) }
+    }
+
+    /// Dependencies in `item` that the "Installed by me" filter is hiding right now.
+    func hiddenDependencyCount(for item: SidebarItem) -> Int {
+        guard showOnlyRequested, item.supportsRequestedFilter else { return 0 }
+        return inventory.packages.count { item.includes($0, unused: unusedIDs) && $0.isDependency }
+    }
+
+    private func shows(_ package: Package, in item: SidebarItem) -> Bool {
+        guard item.includes(package, unused: unusedIDs) else { return false }
+        return !(showOnlyRequested && item.supportsRequestedFilter && package.isDependency)
     }
 
     func isUnused(_ package: Package) -> Bool { unusedIDs.contains(package.id) }
@@ -174,7 +200,7 @@ final class AppModel {
         let item = sidebarSelection ?? .all
         let query = searchText.trimmingCharacters(in: .whitespaces)
         return inventory.packages.filter { package in
-            item.includes(package, unused: unusedIDs) && (query.isEmpty
+            shows(package, in: item) && (query.isEmpty
                 || package.name.localizedCaseInsensitiveContains(query)
                 || package.displayName.localizedCaseInsensitiveContains(query)
                 || (package.desc?.localizedCaseInsensitiveContains(query) ?? false))
@@ -199,7 +225,9 @@ final class AppModel {
             uses = [:]
             loadError = nil
             await loadUnused(runner)
-            RootBeerLog.info("loaded \(count(for: .formulae)) formulae, \(count(for: .casks)) casks, \(count(for: .outdated)) outdated, \(count(for: .unused)) unused")
+            let packages = inventory.packages
+            RootBeerLog.info("loaded \(packages.count { $0.kind == .formula }) formulae, \(packages.count { $0.kind == .cask }) casks, "
+                + "\(packages.count(where: \.isOutdated)) outdated, \(unusedIDs.count) unused")
             if let selectedID, !inventory.packages.contains(where: { $0.id == selectedID }) {
                 self.selectedID = nil
             }
