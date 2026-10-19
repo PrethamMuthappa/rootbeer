@@ -2,17 +2,30 @@ import Foundation
 
 // MARK: - Every Homebrew invocation in RootBeer lives in this file.
 //
-// Audit guide: the only place a `brew` process is started is `BrewRunner.execute`.
-// The public API below is the complete list of brew commands RootBeer can run.
-// Phase 1 is read-only:
-//   brew info --installed --json=v2
-//   brew outdated --json=v2
-//   brew uses --installed NAME
+// Audit guide: the only place a `brew` process is started is `BrewRunner.execute`, and
+// `BrewRunner.run` is private. The complete list of brew commands RootBeer can run:
+//
+// Read-only (BrewRunner methods):
+//   brew info --installed --json=v2        installedInfoJSON()
+//   brew outdated --json=v2                outdatedJSON()
+//   brew uses --installed NAME             installedUses(of:)
+//   brew autoremove --dry-run              autoremoveDryRun()
+//   brew cleanup --dry-run                 cleanupDryRun()
+//
+// Changes the system (BrewAction, run only through BrewRunner.perform):
+//   brew update                            .update
+//   brew upgrade                           .upgradeAll
+//   brew upgrade --formula|--cask NAME     .upgrade
+//   brew uninstall --formula|--cask NAME   .uninstall
+//   brew cleanup                           .cleanup
+//
+// Never used: --zap, plain `brew autoremove`, --ignore-dependencies, --force, --greedy.
 
 public enum BrewError: Error, LocalizedError, Sendable {
     case brewNotFound
     case launchFailed(String)
     case commandFailed(BrewResult)
+    case invalidPackageName(String)
 
     public var errorDescription: String? {
         switch self {
@@ -22,6 +35,8 @@ public enum BrewError: Error, LocalizedError, Sendable {
             "RootBeer couldn't start brew: \(message)"
         case .commandFailed(let result):
             "`\(result.commandLine)` failed with exit status \(result.exitCode).\n\(result.stderr)"
+        case .invalidPackageName(let name):
+            "RootBeer refused to run brew with the package name \"\(name)\"."
         }
     }
 }
@@ -34,11 +49,58 @@ public struct BrewResult: Sendable {
 
     public var succeeded: Bool { exitCode == 0 }
     public var commandLine: String { (["brew"] + arguments).joined(separator: " ") }
+
+    /// brew ran sudo (e.g. a cask's pkg uninstaller) and there was no terminal to ask for the password.
+    public var needsAdminPassword: Bool {
+        let text = (stderr + "\n" + stdout).lowercased()
+        return ["sudo: a terminal is required", "sudo: a password is required", "sudo: no tty present", "askpass"]
+            .contains { text.contains($0) }
+    }
 }
 
 public enum BrewOutput: Sendable {
     case stdout(String)
     case stderr(String)
+}
+
+/// Every brew command that changes the system. Arguments are spelled out here and nowhere else.
+public enum BrewAction: Sendable, Hashable {
+    case update
+    case upgradeAll
+    case upgrade(PackageKind, String)
+    case uninstall(PackageKind, String)
+    case cleanup
+
+    public static func upgrade(_ package: Package) -> BrewAction { .upgrade(package.kind, package.name) }
+    public static func uninstall(_ package: Package) -> BrewAction { .uninstall(package.kind, package.name) }
+
+    public var arguments: [String] {
+        switch self {
+        case .update: ["update"]
+        case .upgradeAll: ["upgrade"]
+        case .upgrade(let kind, let name): ["upgrade", kind.flag, name]
+        case .uninstall(let kind, let name): ["uninstall", kind.flag, name]
+        case .cleanup: ["cleanup"]
+        }
+    }
+
+    public var commandLine: String { (["brew"] + arguments).joined(separator: " ") }
+
+    var packageName: String? {
+        switch self {
+        case .upgrade(_, let name), .uninstall(_, let name): name
+        case .update, .upgradeAll, .cleanup: nil
+        }
+    }
+}
+
+extension PackageKind {
+    var flag: String {
+        switch self {
+        case .formula: "--formula"
+        case .cask: "--cask"
+        }
+    }
 }
 
 public enum BrewLocator {
@@ -62,10 +124,22 @@ public enum BrewLocator {
             .joined(separator: ":")
         // Never let a read trigger an implicit `brew update`; updates are explicit only.
         env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
+        // Likewise, upgrades don't clean up old versions behind your back; that's the Cleanup button.
+        env["HOMEBREW_NO_INSTALL_CLEANUP"] = "1"
         env["HOMEBREW_NO_ENV_HINTS"] = "1"
         env["HOMEBREW_NO_EMOJI"] = "1"
         env["HOMEBREW_NO_COLOR"] = "1"
         return env
+    }
+
+    /// Roughly when Homebrew's package data was last refreshed, from its API cache files.
+    /// Reads file dates only; doesn't run brew. `nil` if unknown.
+    public static func metadataUpdatedAt() -> Date? {
+        let api = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Caches/Homebrew/api")
+        return ["formula_names.txt", "cask_names.txt"]
+            .compactMap { try? FileManager.default.attributesOfItem(atPath: api.appendingPathComponent($0).path)[.modificationDate] as? Date }
+            .max()
     }
 }
 
@@ -104,6 +178,49 @@ public actor BrewRunner {
             .split(whereSeparator: \.isNewline)
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
+    }
+
+    /// Full names of formulae `brew autoremove` would remove right now. Never runs plain `autoremove`.
+    public func autoremoveDryRun() async throws -> [String] {
+        Self.parseAutoremoveDryRun(try await checked(["autoremove", "--dry-run"]).stdout)
+    }
+
+    public func cleanupDryRun() async throws -> BrewResult {
+        try await checked(["cleanup", "--dry-run"])
+    }
+
+    /// Output is `==> Would autoremove N unneeded formulae:` followed by one full name per line,
+    /// or nothing at all when there are no orphans (Homebrew's cleanup.rb).
+    public static func parseAutoremoveDryRun(_ output: String) -> [String] {
+        output.split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && !$0.hasPrefix("==>") && !$0.hasPrefix("Warning:") && !$0.hasPrefix("Error:") && !$0.contains(" ") }
+    }
+
+    // MARK: Commands that change the system
+
+    /// Runs a `BrewAction`. A non-zero exit is returned, not thrown, so callers must check `succeeded`.
+    public func perform(
+        _ action: BrewAction,
+        onOutput: (@Sendable (BrewOutput) -> Void)? = nil
+    ) async throws -> BrewResult {
+        // A name that looks like a flag would change the command's meaning.
+        if let name = action.packageName, name.isEmpty || name.hasPrefix("-") {
+            throw BrewError.invalidPackageName(name)
+        }
+        return try await run(action.arguments, onOutput: onOutput)
+    }
+
+    /// What to paste into Terminal when brew needs a password RootBeer can't supply.
+    public nonisolated func terminalCommand(for action: BrewAction) -> String {
+        (["HOMEBREW_NO_AUTO_UPDATE=1", Self.shellQuoted(brewURL.path)] + action.arguments.map(Self.shellQuoted))
+            .joined(separator: " ")
+    }
+
+    static func shellQuoted(_ word: String) -> String {
+        let safe = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "@%+=:,./-_"))
+        if !word.isEmpty, word.unicodeScalars.allSatisfy(safe.contains) { return word }
+        return "'" + word.replacingOccurrences(of: "'", with: #"'\''"#) + "'"
     }
 
     // MARK: Execution

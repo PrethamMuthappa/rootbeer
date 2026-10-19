@@ -36,6 +36,14 @@ private struct PackageDetail: View {
                     }
                 }
 
+                HStack {
+                    if package.isOutdated {
+                        Button("Upgrade…") { model.requestUpgrade(package) }
+                    }
+                    Button("Uninstall…", role: .destructive) { model.requestUninstall(package) }
+                }
+                .disabled(model.isBusy)
+
                 if let desc = package.desc {
                     Text(desc)
                 }

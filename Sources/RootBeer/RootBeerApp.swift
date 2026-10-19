@@ -20,7 +20,7 @@ struct RootBeerApp: App {
             CommandGroup(after: .newItem) {
                 Button("Reload Packages") { Task { await model.reload() } }
                     .keyboardShortcut("r")
-                    .disabled(model.isLoading)
+                    .disabled(model.isBusy)
             }
         }
     }

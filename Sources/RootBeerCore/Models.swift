@@ -24,6 +24,8 @@ public struct Package: Identifiable, Hashable, Sendable {
     /// Cask `.app` bundles: bare names ("Foo.app") or absolute target paths.
     public let appNames: [String]
     public var isOutdated: Bool
+    /// Pinned packages show as outdated but `brew upgrade` skips them.
+    public var isPinned: Bool = false
 
     public var isDependency: Bool { kind == .formula && !installedOnRequest }
 }
@@ -43,6 +45,7 @@ public struct Inventory: Sendable {
 
         let outdatedFormulae = Dictionary(late.formulae.map { ($0.name, $0.current_version) }, uniquingKeysWith: { a, _ in a })
         let outdatedCasks = Dictionary(late.casks.map { ($0.name, $0.current_version) }, uniquingKeysWith: { a, _ in a })
+        let pinned = Set(late.formulae.filter { $0.pinned == true }.map(\.name))
 
         // Dependencies may be listed by full name ("user/tap/foo"); normalize to short names.
         let shortName = Dictionary(raw.formulae.map { ($0.full_name, $0.name) }, uniquingKeysWith: { a, _ in a })
@@ -67,7 +70,8 @@ public struct Inventory: Sendable {
                 installedOnRequest: keg?.installed_on_request ?? true,
                 dependencies: (directRuntime ?? f.dependencies).map(normalize),
                 appNames: [],
-                isOutdated: outdatedFormulae.keys.contains(f.name)
+                isOutdated: outdatedFormulae.keys.contains(f.name),
+                isPinned: pinned.contains(f.name)
             )
         }
 
@@ -178,6 +182,7 @@ struct RawOutdated: Decodable {
     struct Entry: Decodable {
         let name: String
         let current_version: String?
+        let pinned: Bool?
     }
     let formulae: [Entry]
     let casks: [Entry]

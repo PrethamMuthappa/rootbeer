@@ -93,5 +93,5 @@ private func inventory() throws -> Inventory {
     #expect(env["PATH"]?.hasPrefix("/opt/homebrew/bin:/opt/homebrew/sbin:") == true)
     // Built from an allowlist, so no inherited HOMEBREW_* variable can switch auto-update back on.
     #expect(env.keys.filter { $0.hasPrefix("HOMEBREW_") }.sorted()
-        == ["HOMEBREW_NO_AUTO_UPDATE", "HOMEBREW_NO_COLOR", "HOMEBREW_NO_EMOJI", "HOMEBREW_NO_ENV_HINTS"])
+        == ["HOMEBREW_NO_AUTO_UPDATE", "HOMEBREW_NO_COLOR", "HOMEBREW_NO_EMOJI", "HOMEBREW_NO_ENV_HINTS", "HOMEBREW_NO_INSTALL_CLEANUP"])
 }
