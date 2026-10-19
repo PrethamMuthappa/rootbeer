@@ -460,6 +460,13 @@ final class AppModel {
                 terminalCommand: runner.terminalCommand(for: action)
             )
         }
+        if let runner, case let blocked = result.permissionBlockedPaths(under: runner.prefix), !blocked.isEmpty {
+            return Outcome(
+                title: title, succeeded: false,
+                detail: prefix + "`\(action.commandLine)` couldn't delete \(blocked.joined(separator: ", ")) because some files in it belong to another user, usually root after something ran with sudo. Run this in Terminal (it asks for your password) to give them back to you, then try again:",
+                terminalCommand: runner.permissionFixCommand(for: blocked)
+            )
+        }
         return Outcome(title: title, succeeded: false,
                        detail: prefix + "`\(action.commandLine)` failed with exit status \(result.exitCode). See the log for brew's error.")
     }

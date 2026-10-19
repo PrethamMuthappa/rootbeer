@@ -223,3 +223,46 @@ private func plan(
     #expect(runner.terminalCommand(for: .uninstall(.cask, "foo")) == "HOMEBREW_NO_AUTO_UPDATE=1 /opt/homebrew/bin/brew uninstall --cask foo")
     #expect(runner.terminalCommand(for: .uninstall(.cask, "it's")) == #"HOMEBREW_NO_AUTO_UPDATE=1 /opt/homebrew/bin/brew uninstall --cask 'it'\''s'"#)
 }
+
+// Messages from Homebrew's cmd/cleanup.rb and keg.rb. The cleanup one matches a real failure on this
+// machine: root-owned __pycache__ folders left in an old python@3.14 keg.
+@Test func findsPermissionBlockedPathsFromCleanup() {
+    let result = BrewResult(arguments: ["cleanup"], exitCode: 1, stdout: "", stderr: """
+        Warning: Permission denied @ dir_s_rmdir - /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/x/__pycache__
+        Error: Could not cleanup old kegs! Fix your permissions on:
+          /opt/homebrew/Cellar/python@3.14/3.14.7
+          /opt/homebrew/Cellar/foo/1.0
+        """)
+    #expect(result.permissionBlockedPaths(under: "/opt/homebrew") == [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7", "/opt/homebrew/Cellar/foo/1.0",
+    ])
+    #expect(!result.needsAdminPassword)
+}
+
+@Test func findsPermissionBlockedPathsFromUninstall() {
+    let result = BrewResult(arguments: ["uninstall"], exitCode: 1, stdout: "", stderr: """
+        Error: Could not remove jq keg! Do so manually:
+          sudo rm -rf /opt/homebrew/Cellar/jq/1.8.1
+        """)
+    #expect(result.permissionBlockedPaths(under: "/opt/homebrew") == ["/opt/homebrew/Cellar/jq/1.8.1"])
+}
+
+@Test func ignoresPermissionPathsOutsideHomebrew() {
+    let result = BrewResult(arguments: ["cleanup"], exitCode: 1, stdout: "", stderr: """
+        Error: Could not cleanup old kegs! Fix your permissions on:
+          /etc
+          /opt/homebrew/../../etc
+          /opt/homebrewevil/x
+          relative/path
+        """)
+    #expect(result.permissionBlockedPaths(under: "/opt/homebrew").isEmpty)
+}
+
+@Test func permissionFixCommandIsQuoted() {
+    let runner = BrewRunner(brewURL: URL(fileURLWithPath: "/opt/homebrew/bin/brew"))
+    #expect(runner.prefix == "/opt/homebrew")
+    #expect(runner.permissionFixCommand(for: ["/opt/homebrew/Cellar/python@3.14/3.14.7"], user: "pretham")
+        == "sudo chown -R pretham:admin /opt/homebrew/Cellar/python@3.14/3.14.7")
+    #expect(runner.permissionFixCommand(for: ["/opt/homebrew/Cellar/a b/1"], user: "pretham")
+        == "sudo chown -R pretham:admin '/opt/homebrew/Cellar/a b/1'")
+}

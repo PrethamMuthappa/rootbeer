@@ -57,6 +57,32 @@ public struct BrewResult: Sendable {
         return ["sudo: a terminal is required", "sudo: a password is required", "sudo: no tty present", "askpass"]
             .contains { text.contains($0) }
     }
+
+    /// Folders brew couldn't delete because some files in them belong to another user (usually root,
+    /// after something was run with sudo). brew reports these as
+    ///   `Could not cleanup old kegs! Fix your permissions on:` followed by indented paths (brew cleanup)
+    ///   `Could not remove NAME keg! Do so manually:` followed by `sudo rm -rf PATH` (brew uninstall)
+    /// Only absolute paths inside `prefix` are returned, so brew output can't steer the suggested command elsewhere.
+    public func permissionBlockedPaths(under prefix: String) -> [String] {
+        var paths: [String] = []
+        var collecting = false
+        for raw in (stderr + "\n" + stdout).split(whereSeparator: \.isNewline) {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if line.contains("Fix your permissions on:") || line.contains("Do so manually:") {
+                collecting = true
+                continue
+            }
+            guard collecting else { continue }
+            let candidate = line.hasPrefix("sudo rm -rf ") ? String(line.dropFirst("sudo rm -rf ".count)) : line
+            guard candidate.hasPrefix("/") else {
+                collecting = false
+                continue
+            }
+            let path = URL(fileURLWithPath: candidate).standardizedFileURL.path
+            if path.hasPrefix(prefix + "/"), !paths.contains(path) { paths.append(path) }
+        }
+        return paths
+    }
 }
 
 public enum BrewOutput: Sendable {
@@ -219,6 +245,16 @@ public actor BrewRunner {
     public nonisolated func terminalCommand(for action: BrewAction) -> String {
         (["HOMEBREW_NO_AUTO_UPDATE=1", Self.shellQuoted(brewURL.path)] + action.arguments.map(Self.shellQuoted))
             .joined(separator: " ")
+    }
+
+    /// Homebrew's install prefix, e.g. /opt/homebrew.
+    public nonisolated var prefix: String {
+        brewURL.deletingLastPathComponent().deletingLastPathComponent().path
+    }
+
+    /// Hands folders brew couldn't delete back to the current user, so a retry can remove them through brew.
+    public nonisolated func permissionFixCommand(for paths: [String], user: String = NSUserName()) -> String {
+        (["sudo", "chown", "-R", "\(user):admin"] + paths).map(Self.shellQuoted).joined(separator: " ")
     }
 
     static func shellQuoted(_ word: String) -> String {
