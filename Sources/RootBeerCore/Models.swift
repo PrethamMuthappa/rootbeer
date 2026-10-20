@@ -51,6 +51,8 @@ public struct Inventory: Sendable {
         let raw = try JSONDecoder().decode(RawInfo.self, from: info)
         let late = try JSONDecoder().decode(RawOutdated.self, from: outdated)
 
+        // `brew outdated` names formulae by full name ("user/tap/foo" for third-party taps; Homebrew's
+        // cmd/outdated.rb), so look them up by full name and fall back to the short name.
         let outdatedFormulae = Dictionary(late.formulae.map { ($0.name, $0.current_version) }, uniquingKeysWith: { a, _ in a })
         let outdatedCasks = Dictionary(late.casks.map { ($0.name, $0.current_version) }, uniquingKeysWith: { a, _ in a })
         let pinned = Set(late.formulae.filter { $0.pinned == true }.map(\.name))
@@ -64,7 +66,8 @@ public struct Inventory: Sendable {
         let formulae = raw.formulae.map { f -> Package in
             let keg = f.installed.last
             let directRuntime = keg?.runtime_dependencies?.filter { $0.declared_directly ?? true }.map(\.full_name)
-            let latest = outdatedFormulae[f.name] ?? nil
+            let outdatedKey = outdatedFormulae.keys.contains(f.full_name) ? f.full_name : f.name
+            let latest = outdatedFormulae[outdatedKey] ?? nil
             return Package(
                 kind: .formula,
                 name: f.name,
@@ -78,8 +81,8 @@ public struct Inventory: Sendable {
                 installedOnRequest: keg?.installed_on_request ?? true,
                 dependencies: (directRuntime ?? f.dependencies).map(normalize),
                 appNames: [],
-                isOutdated: outdatedFormulae.keys.contains(f.name),
-                isPinned: pinned.contains(f.name)
+                isOutdated: outdatedFormulae.keys.contains(outdatedKey),
+                isPinned: pinned.contains(outdatedKey)
             )
         }
 

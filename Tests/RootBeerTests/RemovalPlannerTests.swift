@@ -188,17 +188,33 @@ private func plan(
     #expect(BrewAction.cleanup.arguments == ["cleanup"])
 }
 
-@Test func refusesFlagLikePackageNames() async {
+@Test func refusesInvalidPackageNames() async {
     // A missing brew would also throw (launchFailed), so check for the specific refusal.
     let runner = BrewRunner(brewURL: URL(fileURLWithPath: "/nonexistent/brew"))
-    for action in [BrewAction.uninstall(.formula, "--force"), .uninstall(.cask, ""), .upgrade(.formula, "-x")] {
-        do {
-            _ = try await runner.perform(action)
-            Issue.record("expected \(action) to be refused")
-        } catch BrewError.invalidPackageName {
-        } catch {
-            Issue.record("expected invalidPackageName, got \(error)")
+    let bad = ["--force", "", "-x", "a b", "a;rm", "a/b", "caf\u{E9}", "$(id)", "a\nb", String(repeating: "a", count: 201)]
+    for name in bad {
+        for action in [BrewAction.uninstall(.formula, name), .upgrade(.cask, name)] {
+            do {
+                _ = try await runner.perform(action)
+                Issue.record("expected \(action) to be refused")
+            } catch BrewError.invalidPackageName {
+            } catch {
+                Issue.record("expected invalidPackageName for \(name.debugDescription), got \(error)")
+            }
         }
+    }
+    do {
+        _ = try await runner.installedUses(of: "-x")
+        Issue.record("expected installedUses to refuse a flag-like name")
+    } catch BrewError.invalidPackageName {
+    } catch {
+        Issue.record("expected invalidPackageName, got \(error)")
+    }
+}
+
+@Test func acceptsRealPackageNames() {
+    for name in ["jq", "node@24", "python@3.15", "c-ares", "libnghttp2", "gtk+3", "font-fira_code", "7zip"] {
+        #expect(BrewText.isValidPackageName(name), "\(name)")
     }
 }
 
@@ -211,58 +227,132 @@ private func plan(
 
 @Test func detectsPasswordFailures() {
     let sudo = BrewResult(arguments: [], exitCode: 1, stdout: "",
-                          stderr: "sudo: a terminal is required to read the password; either use the -S option to read from standard input or configure an askpass helper\n")
+                          stderr: "Error: Failure while executing\nsudo: a terminal is required to read the password; either use the -S option to read from standard input or configure an askpass helper\n")
     #expect(sudo.needsAdminPassword)
     let refused = BrewResult(arguments: [], exitCode: 1, stdout: "",
                              stderr: "Error: Refusing to uninstall /opt/homebrew/Cellar/lib\nbecause it is required by app, which is currently installed.\n")
     #expect(!refused.needsAdminPassword)
+    // Package output that merely mentions askpass or sudo isn't sudo asking for a password.
+    let mention = BrewResult(arguments: [], exitCode: 1, stdout: "sudo: a password is required\n",
+                             stderr: "Error: ssh-askpass failed to build\nWarning: run with sudo: a terminal is required\n")
+    #expect(!mention.needsAdminPassword)
 }
 
-@Test func terminalCommandIsCopyPasteable() {
+@Test func terminalCommandCarriesSafetySettings() {
     let runner = BrewRunner(brewURL: URL(fileURLWithPath: "/opt/homebrew/bin/brew"))
-    #expect(runner.terminalCommand(for: .uninstall(.cask, "foo")) == "HOMEBREW_NO_AUTO_UPDATE=1 /opt/homebrew/bin/brew uninstall --cask foo")
-    #expect(runner.terminalCommand(for: .uninstall(.cask, "it's")) == #"HOMEBREW_NO_AUTO_UPDATE=1 /opt/homebrew/bin/brew uninstall --cask 'it'\''s'"#)
+    #expect(runner.terminalCommand(for: .uninstall(.cask, "foo")) ==
+        "HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 HOMEBREW_NO_AUTOREMOVE=1 /opt/homebrew/bin/brew uninstall --cask foo")
+    // The suggested command must carry every setting RootBeer's own brew processes use.
+    for variable in BrewLocator.safetyVariables {
+        #expect(runner.terminalCommand(for: .cleanup).contains("\(variable.name)=\(variable.value)"))
+    }
+}
+
+@Test func shellQuotingIsConservative() {
+    #expect(BrewRunner.shellQuoted("/opt/homebrew/Cellar/python@3.14/3.14.7") == "/opt/homebrew/Cellar/python@3.14/3.14.7")
+    #expect(BrewRunner.shellQuoted("it's") == #"'it'\''s'"#)
+    #expect(BrewRunner.shellQuoted("=rm") == "'=rm'")            // zsh would expand a leading =
+    #expect(BrewRunner.shellQuoted("~root") == "'~root'")
+    #expect(BrewRunner.shellQuoted("caf\u{E9}") == "'caf\u{E9}'") // non-ASCII is always quoted
+    #expect(BrewRunner.shellQuoted("") == "''")
 }
 
 // Messages from Homebrew's cmd/cleanup.rb and keg.rb. The cleanup one matches a real failure on this
 // machine: root-owned __pycache__ folders left in an old python@3.14 keg.
-@Test func findsPermissionBlockedPathsFromCleanup() {
+private func allDirectories(_: String) -> Bool { true }
+
+@Test func findsPermissionBlockedKegsFromCleanup() {
     let result = BrewResult(arguments: ["cleanup"], exitCode: 1, stdout: "", stderr: """
         Warning: Permission denied @ dir_s_rmdir - /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/x/__pycache__
         Error: Could not cleanup old kegs! Fix your permissions on:
           /opt/homebrew/Cellar/python@3.14/3.14.7
           /opt/homebrew/Cellar/foo/1.0
         """)
-    #expect(result.permissionBlockedPaths(under: "/opt/homebrew") == [
+    #expect(result.permissionBlockedKegs(prefix: "/opt/homebrew", isRealDirectory: allDirectories) == [
         "/opt/homebrew/Cellar/python@3.14/3.14.7", "/opt/homebrew/Cellar/foo/1.0",
     ])
     #expect(!result.needsAdminPassword)
 }
 
-@Test func findsPermissionBlockedPathsFromUninstall() {
+@Test func findsPermissionBlockedKegsFromUninstall() {
     let result = BrewResult(arguments: ["uninstall"], exitCode: 1, stdout: "", stderr: """
         Error: Could not remove jq keg! Do so manually:
           sudo rm -rf /opt/homebrew/Cellar/jq/1.8.1
         """)
-    #expect(result.permissionBlockedPaths(under: "/opt/homebrew") == ["/opt/homebrew/Cellar/jq/1.8.1"])
+    #expect(result.permissionBlockedKegs(prefix: "/opt/homebrew", isRealDirectory: allDirectories) == ["/opt/homebrew/Cellar/jq/1.8.1"])
 }
 
-@Test func ignoresPermissionPathsOutsideHomebrew() {
-    let result = BrewResult(arguments: ["cleanup"], exitCode: 1, stdout: "", stderr: """
+@Test func onlyTrustsBrewsOwnErrorLineOnStderr() {
+    let paths = "  /opt/homebrew/Cellar/jq/1.8.1\n"
+    // On stdout (package output), or on stderr without brew's "Error: " line, it's ignored.
+    let onStdout = BrewResult(arguments: [], exitCode: 1,
+                              stdout: "Error: Could not cleanup old kegs! Fix your permissions on:\n" + paths, stderr: "")
+    let bare = BrewResult(arguments: [], exitCode: 1, stdout: "", stderr: "Fix your permissions on:\n" + paths)
+    let late = BrewResult(arguments: [], exitCode: 1, stdout: "",
+                          stderr: "Error: Could not cleanup old kegs! Fix your permissions on:\nsomething else\n" + paths)
+    for result in [onStdout, bare, late] {
+        #expect(result.permissionBlockedKegs(prefix: "/opt/homebrew", isRealDirectory: allDirectories).isEmpty)
+    }
+}
+
+@Test func rejectsAnythingButAKegPath() {
+    let candidates = [
+        "/etc", "/opt/homebrew/../../etc", "/opt/homebrewevil/Cellar/a/1", "relative/path",
+        "/opt/homebrew/Cellar/a", "/opt/homebrew/Cellar/a/1/sub", "/opt/homebrew/Cellar/a/..",
+        "/opt/homebrew/Cellar//1", "/opt/homebrew/lib/node_modules/x", "/opt/homebrew/Cellar/a/1/",
+        "/opt/homebrew/Cellar/pyth\u{43E}n/1",      // Cyrillic o
+        "/opt/homebrew/Cellar/a/1\u{202E}",          // right-to-left override
+        "/opt/homebrew/Cellar/a/1\u{1B}[201~",        // escape sequence
+        "/opt/homebrew/Cellar/a b/1",
+    ]
+    let result = BrewResult(arguments: [], exitCode: 1, stdout: "",
+                            stderr: candidates.map { "Error: Could not cleanup old kegs! Fix your permissions on:\n  \($0)" }.joined(separator: "\n"))
+    #expect(result.permissionBlockedKegs(prefix: "/opt/homebrew", isRealDirectory: allDirectories).isEmpty)
+}
+
+@Test func rejectsKegPathsThroughSymlinks() throws {
+    // Real filesystem: <tmp>/prefix/Cellar/evil/1.0 is a symlink to "/", and .../good/1.0 is a directory.
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("rootbeer-\(UUID().uuidString)")
+    let prefix = root.appendingPathComponent("prefix").path
+    defer { try? FileManager.default.removeItem(at: root) }
+    try FileManager.default.createDirectory(atPath: prefix + "/Cellar/good/1.0", withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(atPath: prefix + "/Cellar/evil", withIntermediateDirectories: true)
+    try FileManager.default.createSymbolicLink(atPath: prefix + "/Cellar/evil/1.0", withDestinationPath: "/")
+    try FileManager.default.createSymbolicLink(atPath: prefix + "/Cellar/linked", withDestinationPath: prefix + "/Cellar/good")
+
+    let stderr = """
         Error: Could not cleanup old kegs! Fix your permissions on:
-          /etc
-          /opt/homebrew/../../etc
-          /opt/homebrewevil/x
-          relative/path
-        """)
-    #expect(result.permissionBlockedPaths(under: "/opt/homebrew").isEmpty)
+          \(prefix)/Cellar/evil/1.0
+          \(prefix)/Cellar/linked/1.0
+          \(prefix)/Cellar/good/1.0
+        """
+    let result = BrewResult(arguments: [], exitCode: 1, stdout: "", stderr: stderr)
+    #expect(result.permissionBlockedKegs(prefix: prefix) == ["\(prefix)/Cellar/good/1.0"])
 }
 
-@Test func permissionFixCommandIsQuoted() {
+@Test func permissionFixCommandUsesSystemTools() {
     let runner = BrewRunner(brewURL: URL(fileURLWithPath: "/opt/homebrew/bin/brew"))
     #expect(runner.prefix == "/opt/homebrew")
     #expect(runner.permissionFixCommand(for: ["/opt/homebrew/Cellar/python@3.14/3.14.7"], user: "user")
-        == "sudo chown -R user:admin /opt/homebrew/Cellar/python@3.14/3.14.7")
-    #expect(runner.permissionFixCommand(for: ["/opt/homebrew/Cellar/a b/1"], user: "user")
-        == "sudo chown -R user:admin '/opt/homebrew/Cellar/a b/1'")
+        == "/usr/bin/sudo /usr/sbin/chown -R -P user:admin /opt/homebrew/Cellar/python@3.14/3.14.7")
+}
+
+@Test func streamsOnlyCompleteUTF8Characters() {
+    let bytes = Data("a\u{E9}\u{1F37A}".utf8)            // 1 + 2 + 4 bytes
+    #expect(BrewText.completeUTF8Length(bytes) == bytes.count)
+    #expect(BrewText.completeUTF8Length(bytes.prefix(2)) == 1)      // é cut after its first byte
+    #expect(BrewText.completeUTF8Length(bytes.prefix(5)) == 3)      // 🍺 cut after two of four bytes
+    #expect(BrewText.completeUTF8Length(Data()) == 0)
+}
+
+@Test func tiedNamesSortTheSameEveryTime() {
+    // A formula and a cask with the same name both depend on lib.
+    let packages = [
+        formula("lib", onRequest: true),
+        formula("dup", onRequest: true, deps: ["lib"]),
+        cask("dup", deps: ["lib"]),
+    ]
+    let first = plan("lib", packages)
+    #expect(first.candidateDependents == ["cask:dup", "formula:dup"])
+    #expect(plan("lib", packages) == first)
 }

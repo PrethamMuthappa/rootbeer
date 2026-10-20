@@ -105,3 +105,21 @@ private func inventory() throws -> Inventory {
     let ids = inventory.formulaIDs(named: ["yyjson", "user/tap/missing", "examplebar"])
     #expect(ids == ["formula:yyjson"])
 }
+
+@Test func tapFormulaeAreMatchedToOutdatedByFullName() throws {
+    // `brew outdated --json=v2` names third-party formulae by full name (cmd/outdated.rb).
+    let info = Data("""
+    {"formulae": [{
+      "name": "foo", "full_name": "user/tap/foo", "desc": null, "homepage": null, "tap": "user/tap",
+      "versions": {"stable": "2.0"}, "dependencies": [], "outdated": true,
+      "installed": [{"version": "1.0", "installed_on_request": true, "runtime_dependencies": []}]
+    }], "casks": []}
+    """.utf8)
+    let outdated = Data("""
+    {"formulae": [{"name": "user/tap/foo", "installed_versions": ["1.0"], "current_version": "2.0", "pinned": true}], "casks": []}
+    """.utf8)
+    let foo = try #require(try Inventory.parse(info: info, outdated: outdated).packages.first)
+    #expect(foo.isOutdated)
+    #expect(foo.latestVersion == "2.0")
+    #expect(foo.isPinned)
+}

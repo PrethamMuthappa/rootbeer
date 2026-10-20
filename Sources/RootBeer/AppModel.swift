@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 import Observation
 import RootBeerCore
 
@@ -60,8 +60,14 @@ struct Outcome {
     let succeeded: Bool
     var detail: String
     var terminalCommand: String?
-    /// Packages that disappeared without RootBeer asking brew to uninstall them.
-    var unexpectedlyRemoved: [String] = []
+    /// Things that went differently than asked even though brew exited 0, e.g. a package brew removed
+    /// without being asked, or one that's still outdated after an upgrade. Shown in orange.
+    var warnings: [String] = []
+
+    mutating func warn(_ message: String) {
+        warnings.append(message)
+        detail += " ⚠︎ " + message
+    }
 }
 
 /// What the user saw when they opened a confirmation, so the confirmation can say how fresh it is.
@@ -79,7 +85,8 @@ enum ActiveSheet: Identifiable {
     case upgrade(Package, DataSnapshot)
     case uninstallCask(Package)
     case uninstallFormula(UninstallDraft)
-    case cleanup(String)
+    /// The dry run's output, and whether it found anything to remove (stdout); stderr may only hold warnings.
+    case cleanup(String, hasWork: Bool)
 
     var id: String {
         switch self {
@@ -136,12 +143,16 @@ final class AppModel {
     private(set) var inventoryLoadedAt: Date?
 
     private(set) var log: [LogEntry] = []
+    /// Bumped on every log change, so the log view can follow new output cheaply.
+    private(set) var logRevision = 0
     private(set) var activeOperation: String?
     private(set) var outcome: Outcome?
     private var lastSuccessfulUpdate: Date?
     private var nextLogID = 0
     /// Packages RootBeer explicitly uninstalled during the current operation.
     private var uninstalledThisOperation: Set<Package.ID> = []
+    /// Set when the window is closed mid-operation: the app stays open until brew finishes, then quits.
+    var quitWhenOperationFinishes = false
 
     var sidebarSelection: SidebarItem? = .all
     var searchText = ""
@@ -213,8 +224,16 @@ final class AppModel {
 
     // MARK: Loading (read-only)
 
+    /// Reloads the package list. Ignored while an operation runs; the operation reloads itself.
     func reload() async {
-        guard let runner, !isLoading else { return }
+        guard activeOperation == nil else { return }
+        await loadInventory()
+    }
+
+    /// Loads the package list. Returns false if it couldn't, or if a load was already running.
+    @discardableResult
+    private func loadInventory() async -> Bool {
+        guard let runner, !isLoading else { return false }
         isLoading = true
         defer { isLoading = false }
         do {
@@ -231,9 +250,11 @@ final class AppModel {
             if let selectedID, !inventory.packages.contains(where: { $0.id == selectedID }) {
                 self.selectedID = nil
             }
+            return true
         } catch {
             loadError = error.localizedDescription
             RootBeerLog.info("failed to load packages: \(error.localizedDescription)")
+            return false
         }
     }
 
@@ -301,7 +322,8 @@ final class AppModel {
             let output = (result.stdout + result.stderr).trimmingCharacters(in: .whitespacesAndNewlines)
             appendLog(.stdout, output.isEmpty ? "(no output)\n" : output + "\n")
             appendLog(.success, "exit status 0")
-            sheet = .cleanup(output)
+            let hasWork = !result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            sheet = .cleanup(output, hasWork: hasWork)
         } catch {
             appendLog(.failure, error.localizedDescription)
             outcome = Outcome(title: "Cleanup", succeeded: false, detail: error.localizedDescription)
@@ -327,6 +349,10 @@ final class AppModel {
                 return failure("Upgrade All", .upgradeAll)
             }
             return Outcome(title: "Upgrade All", succeeded: true, detail: "brew upgrade finished.")
+        } verify: { outcome, packages in
+            // Pinned packages are skipped by design; anything else still outdated wasn't upgraded.
+            let left = packages.filter { $0.isOutdated && !$0.isPinned }.map(\.name)
+            if !left.isEmpty { outcome.warn("Still outdated after brew exited 0: \(left.joined(separator: ", ")).") }
         }
     }
 
@@ -337,6 +363,13 @@ final class AppModel {
                 return failure("Upgrade \(package.name)", action)
             }
             return Outcome(title: "Upgrade \(package.name)", succeeded: true, detail: "Upgraded \(package.name).")
+        } verify: { outcome, packages in
+            guard let now = packages.first(where: { $0.id == package.id }) else { return }
+            if now.isOutdated {
+                outcome.warn("brew exited 0, but \(package.name) is still outdated (installed \(now.installedVersion)).")
+            } else {
+                outcome.detail = "Upgraded \(package.name) from \(package.installedVersion) to \(now.installedVersion)."
+            }
         }
     }
 
@@ -352,12 +385,19 @@ final class AppModel {
     }
 
     /// Formula uninstall with dependency cleanup:
-    /// 1. Recompute the plan from the current package list and refuse if it differs from what was confirmed.
+    /// 1. Recompute the plan from a fresh package list (`operation` reloads first) and refuse if it
+    ///    differs from what was confirmed, e.g. because something changed in Terminal meanwhile.
     /// 2. Uninstall the selected package and ticked dependents by name, stopping at the first failure.
     /// 3. Run `brew autoremove --dry-run` as a cross-check.
     /// 4. Uninstall each planned dependency that brew lists, one at a time; skip and log any it doesn't list.
     func uninstall(confirmed shown: RemovalPlan, force: Bool) async {
-        guard let runner, let target = inventory.packages.first(where: { $0.id == shown.target }) else { return }
+        guard let runner, !isBusy else { return }
+        guard let target = inventory.packages.first(where: { $0.id == shown.target }) else {
+            showLog = true
+            outcome = Outcome(title: "Uninstall", succeeded: false,
+                              detail: "That package is no longer in the list, so nothing was run. Reload and try again.")
+            return
+        }
         let title = "Uninstall \(target.name)"
         await operation(title) {
             let graph = DependencyGraph(inventory.packages)
@@ -441,40 +481,63 @@ final class AppModel {
 
     private var lastFailure: BrewResult?
 
-    /// Marks the app busy, runs `body`, reloads the package list, and checks what actually changed
-    /// before reporting the outcome, so the report reflects what's installed rather than the plan.
-    private func operation(_ title: String, _ body: () async -> Outcome) async {
+    /// Runs one user-confirmed operation:
+    /// 1. Marks the app busy (every action button is disabled; reloads are ignored).
+    /// 2. Reloads, so the plan and the "before" list reflect what's installed now, not what was loaded
+    ///    earlier. If that fails, nothing runs.
+    /// 3. Runs `body`, reloads again, and compares: anything removed without an explicit uninstall is
+    ///    flagged, new installs are listed, and `verify` can check the result. The report reflects what's
+    ///    actually installed rather than what was planned.
+    private func operation(
+        _ title: String,
+        _ body: () async -> Outcome,
+        verify: ((inout Outcome, [Package]) -> Void)? = nil
+    ) async {
         guard runner != nil, !isBusy else { return }
         activeOperation = title
+        defer { activeOperation = nil; finishIfWindowClosed() }
         outcome = nil
         lastFailure = nil
         uninstalledThisOperation = []
         showLog = true
         appendLog(.info, "── \(title) ──\n")
+
+        guard await loadInventory() else {
+            let result = Outcome(title: title, succeeded: false,
+                                 detail: "RootBeer couldn't read the installed packages, so nothing was run. \(loadError ?? "")")
+            report(title, result)
+            return
+        }
         let before = Dictionary(inventory.packages.map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a })
         var result = await body()
 
-        activeOperation = nil
-        await reload()
-        let after = Set(inventory.packages.map(\.id))
-        if loadError == nil {
+        if await loadInventory() {
+            let after = Set(inventory.packages.map(\.id))
             let removed = Set(before.keys).subtracting(after)
             let unexpected = removed.subtracting(uninstalledThisOperation).compactMap { before[$0] }.sorted()
             let added = after.subtracting(before.keys).compactMap { id in inventory.packages.first { $0.id == id }?.name }.sorted()
             if !unexpected.isEmpty {
-                result.unexpectedlyRemoved = unexpected
-                result.detail += " ⚠︎ brew also removed \(unexpected.joined(separator: ", ")), which RootBeer didn't ask it to uninstall."
+                result.warn("brew also removed \(unexpected.joined(separator: ", ")), which RootBeer didn't ask it to uninstall.")
             }
             if !added.isEmpty {
                 result.detail += " Newly installed: \(added.joined(separator: ", "))."
             }
+            if result.succeeded { verify?(&result, inventory.packages) }
         } else {
-            result.detail += " ⚠︎ Couldn't reload the package list to verify the result."
+            result.warn("Couldn't reload the package list to verify the result.")
         }
+        report(title, result)
+    }
 
+    private func report(_ title: String, _ result: Outcome) {
         outcome = result
         appendLog(result.succeeded ? .success : .failure, (result.succeeded ? "✓ " : "✗ ") + result.detail)
         RootBeerLog.info("\(title): \(result.succeeded ? "succeeded" : "FAILED") – \(result.detail)")
+    }
+
+    /// If the window was closed while brew was running, the app stayed open to let brew finish; quit now.
+    private func finishIfWindowClosed() {
+        if quitWhenOperationFinishes { NSApp.terminate(nil) }
     }
 
     /// Runs one action, streaming its output into the log. Returns nil if brew couldn't be started.
@@ -515,10 +578,10 @@ final class AppModel {
                 terminalCommand: runner.terminalCommand(for: action)
             )
         }
-        if let runner, case let blocked = result.permissionBlockedPaths(under: runner.prefix), !blocked.isEmpty {
+        if let runner, case let blocked = result.permissionBlockedKegs(prefix: runner.prefix), !blocked.isEmpty {
             return Outcome(
                 title: title, succeeded: false,
-                detail: prefix + "`\(action.commandLine)` couldn't delete \(blocked.joined(separator: ", ")) because some files in it belong to another user, usually root after something ran with sudo. Run this in Terminal (it asks for your password) to give them back to you, then try again:",
+                detail: prefix + "`\(action.commandLine)` couldn't delete \(blocked.joined(separator: ", ")) because some files in it belong to another user, usually root after something ran with sudo. Check the path is an old Homebrew version you expect, then run this in Terminal (it asks for your password) to give the files back to you, and try again:",
                 terminalCommand: runner.permissionFixCommand(for: blocked)
             )
         }
@@ -535,19 +598,48 @@ final class AppModel {
         }
     }
 
-    /// Consecutive stdout/stderr chunks merge into one entry so partial lines join up.
+    /// brew output is stored one line per entry, so the log view only lays out what's on screen even for
+    /// long upgrades. A chunk that ends mid-line is continued by the next chunk of the same stream.
     private func appendLog(_ kind: LogEntry.Kind, _ text: String) {
-        if (kind == .stdout || kind == .stderr), let last = log.indices.last, log[last].kind == kind {
-            log[last].text += text
+        defer { logRevision += 1 }
+        guard kind == .stdout || kind == .stderr else {
+            addLogEntry(kind, text)
             return
         }
+        var rest = Substring(text)
+        if let last = log.indices.last, log[last].kind == kind, !log[last].text.hasSuffix("\n") {
+            let end = rest.firstIndex(of: "\n").map { rest.index(after: $0) } ?? rest.endIndex
+            log[last].text += rest[..<end]
+            rest = rest[end...]
+        }
+        while !rest.isEmpty {
+            let end = rest.firstIndex(of: "\n").map { rest.index(after: $0) } ?? rest.endIndex
+            addLogEntry(kind, String(rest[..<end]))
+            rest = rest[end...]
+        }
+    }
+
+    private static let maxLogEntries = 5_000
+
+    private func addLogEntry(_ kind: LogEntry.Kind, _ text: String) {
         nextLogID += 1
         log.append(LogEntry(id: nextLogID, kind: kind, text: text))
+        if log.count > Self.maxLogEntries {
+            log.removeFirst(log.count - Self.maxLogEntries + 1)
+            nextLogID += 1
+            log.insert(LogEntry(id: nextLogID, kind: .info, text: "… earlier output trimmed …"), at: 0)
+        }
+    }
+
+    /// The whole log as plain text, one entry per line.
+    var logText: String {
+        log.map { $0.text.hasSuffix("\n") ? $0.text : $0.text + "\n" }.joined()
     }
 
     func clearLog() {
         guard !isBusy else { return }
         log = []
+        logRevision += 1
         outcome = nil
     }
 }

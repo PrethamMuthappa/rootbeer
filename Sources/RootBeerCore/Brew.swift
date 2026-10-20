@@ -52,36 +52,102 @@ public struct BrewResult: Sendable {
     public var commandLine: String { (["brew"] + arguments).joined(separator: " ") }
 
     /// brew ran sudo (e.g. a cask's pkg uninstaller) and there was no terminal to ask for the password.
+    /// Only lines sudo itself writes to stderr count, so package output can't trigger this.
     public var needsAdminPassword: Bool {
-        let text = (stderr + "\n" + stdout).lowercased()
-        return ["sudo: a terminal is required", "sudo: a password is required", "sudo: no tty present", "askpass"]
-            .contains { text.contains($0) }
+        stderr.split(whereSeparator: \.isNewline).contains { raw in
+            let line = raw.trimmingCharacters(in: .whitespaces).lowercased()
+            return line.hasPrefix("sudo:")
+                && ["a terminal is required", "a password is required", "no tty present", "askpass"].contains { line.contains($0) }
+        }
     }
 
-    /// Folders brew couldn't delete because some files in them belong to another user (usually root,
-    /// after something was run with sudo). brew reports these as
-    ///   `Could not cleanup old kegs! Fix your permissions on:` followed by indented paths (brew cleanup)
-    ///   `Could not remove NAME keg! Do so manually:` followed by `sudo rm -rf PATH` (brew uninstall)
-    /// Only absolute paths inside `prefix` are returned, so brew output can't steer the suggested command elsewhere.
-    public func permissionBlockedPaths(under prefix: String) -> [String] {
+    /// Installed versions ("kegs") brew couldn't delete because some files in them belong to another user
+    /// (usually root, after something was run with sudo). brew reports these on stderr as
+    ///   `Error: Could not cleanup old kegs! Fix your permissions on:` + indented paths   (cmd/cleanup.rb)
+    ///   `Error: Could not remove NAME keg! Do so manually:` + `  sudo rm -rf PATH`        (keg.rb)
+    ///
+    /// The result feeds a `sudo chown` suggestion, and package output can contain anything, so this is strict:
+    /// only stderr, only lines directly after brew's own error line, only paths shaped exactly
+    /// `<prefix>/Cellar/<name>/<version>` in plain ASCII, and only if every part of that path is a real
+    /// directory rather than a symlink (checked by `isRealDirectory`).
+    public func permissionBlockedKegs(
+        prefix: String,
+        isRealDirectory: (String) -> Bool = BrewResult.isRealDirectory
+    ) -> [String] {
         var paths: [String] = []
         var collecting = false
-        for raw in (stderr + "\n" + stdout).split(whereSeparator: \.isNewline) {
+        for raw in stderr.split(separator: "\n", omittingEmptySubsequences: false) {
             let line = raw.trimmingCharacters(in: .whitespaces)
-            if line.contains("Fix your permissions on:") || line.contains("Do so manually:") {
+            if line.hasPrefix("Error: Could not cleanup old kegs! Fix your permissions on:")
+                || (line.hasPrefix("Error: Could not remove ") && line.hasSuffix(" keg! Do so manually:")) {
                 collecting = true
                 continue
             }
             guard collecting else { continue }
             let candidate = line.hasPrefix("sudo rm -rf ") ? String(line.dropFirst("sudo rm -rf ".count)) : line
+            // The list ends at the first line that isn't a path; a path that fails validation is skipped.
             guard candidate.hasPrefix("/") else {
                 collecting = false
                 continue
             }
-            let path = URL(fileURLWithPath: candidate).standardizedFileURL.path
-            if path.hasPrefix(prefix + "/"), !paths.contains(path) { paths.append(path) }
+            if let keg = Self.validKegPath(candidate, prefix: prefix, isRealDirectory: isRealDirectory), !paths.contains(keg) {
+                paths.append(keg)
+            }
         }
         return paths
+    }
+
+    static func validKegPath(_ path: String, prefix: String, isRealDirectory: (String) -> Bool) -> String? {
+        let cellar = prefix + "/Cellar/"
+        guard path.hasPrefix(cellar), path.unicodeScalars.allSatisfy(BrewText.isSafeASCII) else { return nil }
+        let parts = path.dropFirst(cellar.count).split(separator: "/", omittingEmptySubsequences: false)
+        guard parts.count == 2, parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else { return nil }
+        // Every level must be a real directory: a symlink anywhere would let `chown` reach outside the prefix.
+        let levels = [prefix, prefix + "/Cellar", cellar + parts[0], path]
+        guard levels.allSatisfy(isRealDirectory) else { return nil }
+        return path
+    }
+
+    /// True if `path` exists and is a directory, without following a symlink at the last component.
+    public static func isRealDirectory(_ path: String) -> Bool {
+        let type = (try? FileManager.default.attributesOfItem(atPath: path))?[.type] as? FileAttributeType
+        return type == .typeDirectory
+    }
+}
+
+/// Character rules for anything RootBeer passes to brew or shows as a command to paste.
+enum BrewText {
+    /// Plain ASCII that's safe unquoted in sh/zsh. `=` and `~` are left out: zsh expands a leading `=`
+    /// (e.g. `=rm`), and `~` expands to a home directory.
+    static func isSafeASCII(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar {
+        case "A"..."Z", "a"..."z", "0"..."9", "@", "%", "+", ":", ",", ".", "/", "_", "-": true
+        default: false
+        }
+    }
+
+    /// Homebrew formula and cask names: lowercase-ish ASCII words like `node@24`, `python@3.15`, `c-ares`.
+    /// Must start with a letter or digit, so it can never read as a flag.
+    static func isValidPackageName(_ name: String) -> Bool {
+        let scalars = name.unicodeScalars
+        guard let first = scalars.first, isAlphanumeric(first), scalars.count <= 200 else { return false }
+        return scalars.allSatisfy { isAlphanumeric($0) || "@+._-".unicodeScalars.contains($0) }
+    }
+
+    /// Length of the longest prefix of `data` that doesn't end partway through a UTF-8 character.
+    static func completeUTF8Length(_ data: Data) -> Int {
+        let bytes = [UInt8](data.suffix(4))
+        var start = bytes.count - 1
+        // Step back over continuation bytes (10xxxxxx) to the last character's first byte.
+        while start > 0, bytes[start] & 0b1100_0000 == 0b1000_0000 { start -= 1 }
+        guard start >= 0, !bytes.isEmpty else { return data.count }
+        let lead = bytes[start]
+        let needed = lead < 0x80 ? 1 : lead >> 5 == 0b110 ? 2 : lead >> 4 == 0b1110 ? 3 : lead >> 3 == 0b11110 ? 4 : 1
+        return bytes.count - start >= needed ? data.count : data.count - (bytes.count - start)
+    }
+
+    private static func isAlphanumeric(_ scalar: Unicode.Scalar) -> Bool {
+        ("A"..."Z").contains(scalar) || ("a"..."z").contains(scalar) || ("0"..."9").contains(scalar)
     }
 }
 
@@ -139,6 +205,18 @@ public enum BrewLocator {
             .map { URL(fileURLWithPath: $0) }
     }
 
+    /// Settings that keep brew from doing anything RootBeer didn't ask for. Used for every brew process
+    /// RootBeer runs and in every brew command it suggests pasting into Terminal.
+    /// - NO_AUTO_UPDATE: no implicit `brew update`; updates are explicit only.
+    /// - NO_INSTALL_CLEANUP: upgrades don't delete old versions; that's the Cleanup button.
+    /// - NO_AUTOREMOVE: since Homebrew 4.3, `brew uninstall` and `brew cleanup` otherwise run a system-wide
+    ///   `brew autoremove`, removing unrelated orphans. RootBeer removes dependencies itself, one by one.
+    public static let safetyVariables: [(name: String, value: String)] = [
+        ("HOMEBREW_NO_AUTO_UPDATE", "1"),
+        ("HOMEBREW_NO_INSTALL_CLEANUP", "1"),
+        ("HOMEBREW_NO_AUTOREMOVE", "1"),
+    ]
+
     /// GUI apps don't inherit the shell PATH, so every brew process gets an explicit one.
     static func environment(for brew: URL) -> [String: String] {
         let prefix = brew.deletingLastPathComponent().deletingLastPathComponent().path
@@ -149,13 +227,7 @@ public enum BrewLocator {
         }
         env["PATH"] = ["\(prefix)/bin", "\(prefix)/sbin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"]
             .joined(separator: ":")
-        // Never let a read trigger an implicit `brew update`; updates are explicit only.
-        env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
-        // Likewise, upgrades don't clean up old versions behind your back; that's the Cleanup button.
-        env["HOMEBREW_NO_INSTALL_CLEANUP"] = "1"
-        // Since Homebrew 4.3, `brew uninstall` and `brew cleanup` run a system-wide `brew autoremove`
-        // afterwards, removing unrelated orphans. RootBeer removes dependencies itself, one by one.
-        env["HOMEBREW_NO_AUTOREMOVE"] = "1"
+        for variable in safetyVariables { env[variable.name] = variable.value }
         env["HOMEBREW_NO_ENV_HINTS"] = "1"
         env["HOMEBREW_NO_EMOJI"] = "1"
         env["HOMEBREW_NO_COLOR"] = "1"
@@ -204,7 +276,8 @@ public actor BrewRunner {
 
     /// Installed formulae that depend on `formula`. Formulae only: brew can't answer this for casks.
     public func installedUses(of formula: String) async throws -> [String] {
-        try await checked(["uses", "--installed", formula]).stdout
+        guard BrewText.isValidPackageName(formula) else { throw BrewError.invalidPackageName(formula) }
+        return try await checked(["uses", "--installed", formula]).stdout
             .split(whereSeparator: \.isNewline)
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
@@ -234,16 +307,19 @@ public actor BrewRunner {
         _ action: BrewAction,
         onOutput: (@Sendable (BrewOutput) -> Void)? = nil
     ) async throws -> BrewResult {
-        // A name that looks like a flag would change the command's meaning.
-        if let name = action.packageName, name.isEmpty || name.hasPrefix("-") {
+        // Names come from brew's JSON, which third-party taps control. Anything that isn't a plain
+        // package name (e.g. one that starts with `-` and would read as a flag) is refused.
+        if let name = action.packageName, !BrewText.isValidPackageName(name) {
             throw BrewError.invalidPackageName(name)
         }
         return try await run(action.arguments, onOutput: onOutput)
     }
 
-    /// What to paste into Terminal when brew needs a password RootBeer can't supply.
+    /// What to paste into Terminal when brew needs a password RootBeer can't supply. Carries the same
+    /// safety settings RootBeer uses, so the pasted command can't trigger an implicit autoremove.
     public nonisolated func terminalCommand(for action: BrewAction) -> String {
-        (["HOMEBREW_NO_AUTO_UPDATE=1", Self.shellQuoted(brewURL.path)] + action.arguments.map(Self.shellQuoted))
+        let settings = BrewLocator.safetyVariables.map { "\($0.name)=\($0.value)" }
+        return (settings + [Self.shellQuoted(brewURL.path)] + action.arguments.map(Self.shellQuoted))
             .joined(separator: " ")
     }
 
@@ -252,14 +328,17 @@ public actor BrewRunner {
         brewURL.deletingLastPathComponent().deletingLastPathComponent().path
     }
 
-    /// Hands folders brew couldn't delete back to the current user, so a retry can remove them through brew.
-    public nonisolated func permissionFixCommand(for paths: [String], user: String = NSUserName()) -> String {
-        (["sudo", "chown", "-R", "\(user):admin"] + paths).map(Self.shellQuoted).joined(separator: " ")
+    /// Hands kegs brew couldn't delete back to the current user, so a retry can remove them through brew.
+    /// Full paths to sudo and chown so a same-named tool earlier in the user's PATH (e.g. in
+    /// /opt/homebrew/bin) can't intercept the password; `-P` so chown never follows symlinks inside.
+    /// Pass only paths from `BrewResult.permissionBlockedKegs`.
+    public nonisolated func permissionFixCommand(for kegs: [String], user: String = NSUserName()) -> String {
+        (["/usr/bin/sudo", "/usr/sbin/chown", "-R", "-P", "\(user):admin"] + kegs).map(Self.shellQuoted).joined(separator: " ")
     }
 
+    /// Leaves plain ASCII words alone and single-quotes everything else.
     static func shellQuoted(_ word: String) -> String {
-        let safe = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "@%+=:,./-_"))
-        if !word.isEmpty, word.unicodeScalars.allSatisfy(safe.contains) { return word }
+        if !word.isEmpty, word.unicodeScalars.allSatisfy(BrewText.isSafeASCII) { return word }
         return "'" + word.replacingOccurrences(of: "'", with: #"'\''"#) + "'"
     }
 
@@ -323,12 +402,23 @@ public actor BrewRunner {
                 for (handle, buffer, isStdout) in streams {
                     group.enter()
                     DispatchQueue.global(qos: .userInitiated).async {
-                        // Read to EOF so no trailing output is lost after the process exits.
-                        while case let chunk = handle.availableData, !chunk.isEmpty {
-                            buffer.append(chunk)
-                            let text = String(decoding: chunk, as: UTF8.self)
+                        // Read to EOF so no trailing output is lost after the process exits. A multi-byte
+                        // character can be split across chunks, so only complete characters are streamed.
+                        var pending = Data()
+                        func emit(_ bytes: Data) {
+                            let text = String(decoding: bytes, as: UTF8.self)
                             onOutput?(isStdout ? .stdout(text) : .stderr(text))
                         }
+                        while case let chunk = handle.availableData, !chunk.isEmpty {
+                            buffer.append(chunk)
+                            pending.append(chunk)
+                            let complete = BrewText.completeUTF8Length(pending)
+                            if complete > 0 {
+                                emit(pending.prefix(complete))
+                                pending.removeFirst(complete)
+                            }
+                        }
+                        if !pending.isEmpty { emit(pending) }
                         group.leave()
                     }
                 }

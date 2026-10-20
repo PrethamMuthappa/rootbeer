@@ -29,7 +29,7 @@ struct ContentView: View {
             case .upgrade(let package, let snapshot): UpgradeSheet(package: package, snapshot: snapshot)
             case .uninstallCask(let cask): CaskUninstallSheet(cask: cask)
             case .uninstallFormula(let draft): UninstallSheet(draft: draft)
-            case .cleanup(let output): CleanupSheet(dryRunOutput: output)
+            case .cleanup(let output, let hasWork): CleanupSheet(dryRunOutput: output, hasWork: hasWork)
             }
         }
     }

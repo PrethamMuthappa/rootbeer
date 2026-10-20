@@ -28,7 +28,7 @@ struct LogPanel: View {
                 Text("Log").font(.callout.weight(.semibold))
             }
             Spacer()
-            Button("Copy Log") { copy(model.log.map(\.text).joined(separator: "\n")) }
+            Button("Copy Log") { copy(model.logText) }
                 .disabled(model.log.isEmpty)
             Button("Clear") { model.clearLog() }
                 .disabled(model.isBusy || model.log.isEmpty)
@@ -55,7 +55,7 @@ struct LogPanel: View {
                 .padding(.vertical, 8)
             }
             .frame(maxHeight: .infinity)
-            .onChange(of: model.log.last?.text.count) {
+            .onChange(of: model.logRevision) {
                 if let last = model.log.last { proxy.scrollTo(last.id, anchor: .bottom) }
             }
         }
@@ -121,7 +121,7 @@ struct OutcomeBanner: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Image(systemName: outcome.succeeded
-                  ? (outcome.unexpectedlyRemoved.isEmpty ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                  ? (outcome.warnings.isEmpty ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                   : "xmark.octagon.fill")
                 .foregroundStyle(tint)
                 .font(.title3)
@@ -148,7 +148,7 @@ struct OutcomeBanner: View {
     /// Orange when brew changed more than RootBeer asked for, even if every command exited 0.
     private var tint: Color {
         if !outcome.succeeded { return .red }
-        return outcome.unexpectedlyRemoved.isEmpty ? .green : .orange
+        return outcome.warnings.isEmpty ? .green : .orange
     }
 }
 

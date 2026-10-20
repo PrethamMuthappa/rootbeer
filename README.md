@@ -19,7 +19,7 @@ Build the app bundle:
 open build/RootBeer.app
 ```
 
-The script runs `swift build -c release` and assembles `build/RootBeer.app`. It writes `Info.plist` (bundle id `com.local.rootbeer`) and ad-hoc signs the bundle with `codesign --sign -`. Drag the app to `/Applications` if you want to keep it.
+The script runs `swift build -c release` and assembles `build/RootBeer.app`. It writes `Info.plist` (bundle id `com.local.rootbeer`), removes the toolchain's unused library search paths, and ad-hoc signs the bundle with the hardened runtime (`codesign --sign - --options runtime`). Drag the app to `/Applications` if you want to keep it.
 
 Because the signature is ad-hoc, macOS may refuse to open a copy that was downloaded from somewhere else. A copy built on your own Mac opens normally.
 
@@ -42,7 +42,7 @@ swift test
 - **Uninstall:** casks run `brew uninstall --cask NAME`, never `--zap`. Formulae open a plan, described below.
 - **Cleanup:** shows the `brew cleanup --dry-run` output and asks before running `brew cleanup`.
 
-Output from every command streams into the log panel. The result shows the exit status, and a non-zero exit is always shown as **FAILED**. If brew needs an administrator password, RootBeer stops and shows the exact command to paste into Terminal.
+Output from every command streams into the log panel. The result shows the exit status, and a non-zero exit is always shown as **FAILED**. If brew needs an administrator password, RootBeer stops and shows the exact command to paste into Terminal, with the same safety settings RootBeer uses. If brew can't delete an old version because some of its files are owned by root, RootBeer suggests `/usr/bin/sudo /usr/sbin/chown -R -P` for that folder. It only does this for a real `<prefix>/Cellar/<name>/<version>` directory, never a symlink, and only when brew's own error message names it.
 
 ### Uninstalling a formula
 
@@ -70,7 +70,9 @@ Plain `brew autoremove` is never run, because it would remove unrelated orphans.
   - `HOMEBREW_NO_AUTO_UPDATE=1`: brew never updates itself behind your back. Use **Update Homebrew**.
   - `HOMEBREW_NO_INSTALL_CLEANUP=1`: upgrades keep old versions until you run **Cleanup**.
   - `HOMEBREW_NO_AUTOREMOVE=1`: since Homebrew 4.3, `brew uninstall` and `brew cleanup` otherwise run a system-wide `brew autoremove` afterwards, which removes unrelated orphans.
-- **Result checked against reality:** after every operation, RootBeer reloads the package list and compares it with the list from before. Anything brew removed without being asked appears in an orange warning, and newly installed packages are listed.
+- **Result checked against reality:** every operation reloads the package list before it starts (nothing runs if that fails) and again afterwards, then compares the two. Anything brew removed without being asked appears in an orange warning, and newly installed packages are listed. Upgrades also check that the package is no longer outdated.
+- **No half-finished operations:** quitting while brew is changing things asks first, with "Keep Running" as the default. Closing the window instead keeps RootBeer running until brew finishes, then it quits. RootBeer has a single window, so there's never a second one that could start work or reload in the middle of an operation.
+- **Strict inputs:** package names must be plain ASCII Homebrew names, so nothing that looks like a flag or contains special characters is ever passed to brew. Homepage links open only if they're `http` or `https`. Icons are looked up only in `/Applications` and `~/Applications`.
 - **No terminal input:** stdin is `/dev/null`, so a password prompt fails immediately instead of hanging.
 
 Never used: `--zap`, plain `brew autoremove`, `--ignore-dependencies`, `--force`, `--greedy`.

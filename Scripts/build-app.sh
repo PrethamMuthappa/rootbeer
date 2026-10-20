@@ -53,8 +53,19 @@ cat > "$APP/Contents/Info.plist" <<EOF
 EOF
 plutil -lint "$APP/Contents/Info.plist" >/dev/null
 
-echo "RootBeer: ad-hoc signing…"
-codesign --force --sign - --identifier com.local.rootbeer "$APP"
+# RootBeer links its Swift libraries by absolute path (/usr/lib/swift), so the toolchain's rpaths are
+# never used; drop them so the loader has nowhere else to look.
+otool -l "$APP/Contents/MacOS/RootBeer" | awk '/cmd LC_RPATH/ { getline; getline; print $2 }' | while read -r rpath; do
+    install_name_tool -delete_rpath "$rpath" "$APP/Contents/MacOS/RootBeer" 2>/dev/null
+done
+if otool -L "$APP/Contents/MacOS/RootBeer" | grep -q "@rpath"; then
+    echo "RootBeer: binary links @rpath libraries; rpaths are needed after all" >&2
+    exit 1
+fi
+
+# Hardened runtime: blocks DYLD_* injection and unsigned libraries. Required for notarization too.
+echo "RootBeer: ad-hoc signing (hardened runtime)…"
+codesign --force --sign - --options runtime --identifier com.local.rootbeer "$APP"
 codesign --verify --strict "$APP"
 
 echo "RootBeer: built $APP"

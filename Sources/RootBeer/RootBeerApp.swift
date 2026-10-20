@@ -10,10 +10,12 @@ struct RootBeerApp: App {
     private var model: AppModel { modelState.wrappedValue }
 
     var body: some Scene {
-        WindowGroup("RootBeer") {
+        // A single window: a second one would share the same model, sheets and operations.
+        Window("RootBeer", id: "main") {
             ContentView()
                 .environment(model)
                 .frame(minWidth: 900, minHeight: 560)
+                .onAppear { appDelegate.model = model }
                 .task { await model.reload() }
         }
         .commands {
@@ -34,11 +36,36 @@ struct RootBeerApp: App {
 }
 
 final class RootBeerAppDelegate: NSObject, NSApplicationDelegate {
+    weak var model: AppModel?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Needed when launched as a bare executable (`swift run`) rather than from RootBeer.app.
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    /// Closing the window quits, except while brew is changing things: then RootBeer stays open
+    /// until brew finishes, so it isn't cut off halfway through an upgrade or uninstall.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        guard let model, model.activeOperation != nil else { return true }
+        model.quitWhenOperationFinishes = true
+        return false
+    }
+
+    /// Quitting while brew is changing things asks first; the safe choice is the default.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let model, let operation = model.activeOperation else { return .terminateNow }
+        let alert = NSAlert()
+        alert.messageText = "\(operation) is still running"
+        alert.informativeText = "Quitting now stops brew partway through, which can leave packages half-installed or half-removed. "
+            + "If you close the window instead, RootBeer quits by itself when brew finishes."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Keep Running")
+        alert.addButton(withTitle: "Quit Anyway")
+        guard alert.runModal() == .alertSecondButtonReturn else {
+            model.quitWhenOperationFinishes = false
+            return .terminateCancel
+        }
+        return .terminateNow
+    }
 }

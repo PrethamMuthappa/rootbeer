@@ -24,14 +24,12 @@ actor IconCache {
     private func appPath(for package: Package) -> String? {
         guard package.kind == .cask else { return nil }
         let fm = FileManager.default
-        for app in package.appNames {
-            let expanded = (app as NSString).expandingTildeInPath
-            if expanded.hasPrefix("/") {
-                if fm.fileExists(atPath: expanded) { return expanded }
-                continue
-            }
+        // Only look in /Applications and ~/Applications, by bundle name. Cask metadata comes from taps,
+        // and an arbitrary absolute path (e.g. on a network volume) could stall icon loading.
+        let names = package.appNames.map { ($0 as NSString).lastPathComponent }.filter { $0.hasSuffix(".app") }
+        for name in names {
             for root in searchRoots {
-                let path = (root as NSString).appendingPathComponent(app)
+                let path = (root as NSString).appendingPathComponent(name)
                 if fm.fileExists(atPath: path) { return path }
             }
         }

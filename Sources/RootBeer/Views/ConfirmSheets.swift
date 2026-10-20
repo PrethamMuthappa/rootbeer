@@ -133,6 +133,8 @@ struct CaskUninstallSheet: View {
             if !cask.appNames.isEmpty {
                 Text("Removes: \(cask.appNames.map { ($0 as NSString).lastPathComponent }.uniqued().joined(separator: ", "))")
             }
+            Text("brew also runs the cask's own uninstall steps, which can remove more than the app: for example helper tools, login items or installer packages.")
+                .foregroundStyle(.secondary)
             Text("Settings and support files are left in place (no --zap).")
                 .foregroundStyle(.secondary)
             Text("If the cask's uninstaller needs an administrator password, RootBeer will stop and show the command to run in Terminal.")
@@ -145,18 +147,21 @@ struct CaskUninstallSheet: View {
 struct CleanupSheet: View {
     @Environment(AppModel.self) private var model
     let dryRunOutput: String
+    /// False when the dry run printed nothing on stdout (stderr may still carry warnings).
+    let hasWork: Bool
 
     var body: some View {
         ConfirmSheet(
             title: "Clean up?",
             actionTitle: "Clean Up",
             destructive: true,
-            actionDisabled: dryRunOutput.isEmpty,
+            actionDisabled: !hasWork,
             action: { Task { await model.cleanup() } }
         ) {
-            if dryRunOutput.isEmpty {
+            if !hasWork {
                 Text("`brew cleanup --dry-run` found nothing to remove.")
-            } else {
+            }
+            if !dryRunOutput.isEmpty {
                 Text("`brew cleanup --dry-run` says `brew cleanup` would do this:")
                 Text(dryRunOutput)
                     .font(.system(.caption, design: .monospaced))

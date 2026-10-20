@@ -147,6 +147,13 @@ public enum RemovalPlanner {
     }
 
     private static func sortedByName(_ ids: Set<Package.ID>, _ graph: DependencyGraph) -> [Package.ID] {
-        ids.sorted { graph.name($0).localizedStandardCompare(graph.name($1)) == .orderedAscending }
+        // Ties (a formula and a cask with the same name) break on id, so the order is always the same.
+        ids.sorted {
+            switch graph.name($0).localizedStandardCompare(graph.name($1)) {
+            case .orderedAscending: true
+            case .orderedDescending: false
+            case .orderedSame: $0 < $1
+            }
+        }
     }
 }

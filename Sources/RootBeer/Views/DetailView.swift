@@ -74,7 +74,8 @@ private struct PackageDetail: View {
                     if package.kind == .formula {
                         row("Reason", package.installedOnRequest ? "Installed on request" : "Installed as a dependency")
                     }
-                    if let homepage = package.homepage, let url = URL(string: homepage) {
+                    if let homepage = package.homepage, let url = URL(string: homepage),
+                       ["http", "https"].contains(url.scheme?.lowercased() ?? "") {
                         GridRow {
                             Text("Homepage").foregroundStyle(.secondary)
                             Link(homepage, destination: url).lineLimit(1).truncationMode(.middle)
