@@ -12,7 +12,7 @@ Swift and SwiftUI, built with Swift Package Manager. No Xcode project, no third-
 
 ## Install
 
-RootBeer is free and open source (MIT). Both ways below build it on your own Mac. That means macOS doesn't show the "can't be verified" warning that unsigned downloads get, and no Apple Developer account is involved.
+RootBeer is free and open source (MIT). If you find it useful, you can [buy me a coffee](https://buymeacoffee.com/pretham). Both ways below build it on your own Mac. That means macOS doesn't show the "can't be verified" warning that unsigned downloads get, and no Apple Developer account is involved.
 
 ### With Homebrew
 
@@ -127,6 +127,10 @@ Tests/RootBeerTests/            Swift Testing; fixtures are trimmed real brew JS
 - **Tests use Swift Testing.** XCTest isn't included with the Command Line Tools. Swift Testing is, but SwiftPM doesn't pass its macro plugin to every compile step. `Package.swift` adds `-plugin-path` for the test target when the plugin folder exists.
 - **No `@State`.** In the macOS 27 SDK, SwiftUI's `@State` is a macro whose plugin only ships with Xcode. RootBeer stores `State(initialValue:)` explicitly instead, which works with every SDK.
 - **Harmless warning.** `ld: warning: search path '…/Developer/Library/Frameworks' not found` is a Command Line Tools quirk.
+
+## Support
+
+RootBeer is free and open source. If it saves you time, you can [buy me a coffee ☕](https://buymeacoffee.com/pretham). Inside the app, it's at the bottom of the sidebar and under Help → Buy Me a Coffee….
 
 ## License
 

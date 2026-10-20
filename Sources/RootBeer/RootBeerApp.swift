@@ -1,6 +1,12 @@
 import AppKit
 import SwiftUI
 
+/// RootBeer's outside links, in one place.
+enum RootBeerLinks {
+    static let support = URL(string: "https://buymeacoffee.com/pretham")!
+    static let repository = URL(string: "https://github.com/PrethamMuthappa/rootbeer")!
+}
+
 @main
 struct RootBeerApp: App {
     @NSApplicationDelegateAdaptor(RootBeerAppDelegate.self) private var appDelegate
@@ -30,6 +36,11 @@ struct RootBeerApp: App {
                     set: { model.showOnlyRequested = $0 }
                 ))
                 .keyboardShortcut("d", modifiers: [.command, .shift])
+            }
+            // Replaces the default "RootBeer Help" item, which would do nothing without a help book.
+            CommandGroup(replacing: .help) {
+                Button("Buy Me a Coffee…") { NSWorkspace.shared.open(RootBeerLinks.support) }
+                Button("RootBeer on GitHub") { NSWorkspace.shared.open(RootBeerLinks.repository) }
             }
         }
     }
