@@ -1,4 +1,6 @@
-# RootBeer
+<img width="860" height="260" alt="rootbeer-wordmark-dark-text" src="https://github.com/user-attachments/assets/b4f073a0-7145-469b-b5f0-4ac0455276e2" />
+
+
 
 A native macOS app for managing Homebrew packages. Browse installed formulae and casks with their icons, upgrade them, and uninstall them along with dependencies nothing else needs.
 
