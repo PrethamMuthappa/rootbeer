@@ -42,6 +42,22 @@ final class RootBeerAppDelegate: NSObject, NSApplicationDelegate {
         // Needed when launched as a bare executable (`swift run`) rather than from RootBeer.app.
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        if Bundle.main.bundleURL.pathExtension != "app", let icon = Self.developmentIcon() {
+            NSApp.applicationIconImage = icon
+        }
+    }
+
+    /// RootBeer.app gets its icon from AppIcon.icns. A development build (.build/…/RootBeer) has no
+    /// bundle, so look for the project's Resources/AppIcon.png a few folders up from the executable.
+    private static func developmentIcon() -> NSImage? {
+        var folder = Bundle.main.executableURL?.resolvingSymlinksInPath().deletingLastPathComponent()
+        for _ in 0..<5 {
+            guard let current = folder else { return nil }
+            let candidate = current.appendingPathComponent("Resources/AppIcon.png")
+            if FileManager.default.fileExists(atPath: candidate.path) { return NSImage(contentsOf: candidate) }
+            folder = current.deletingLastPathComponent()
+        }
+        return nil
     }
 
     /// Closing the window quits, except while brew is changing things: then RootBeer stays open

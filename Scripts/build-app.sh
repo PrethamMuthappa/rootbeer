@@ -19,6 +19,24 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/RootBeer" "$APP/Contents/MacOS/RootBeer"
 
+# App icon: Resources/AppIcon.png (1024×1024 or larger, transparent outside the rounded square)
+# becomes AppIcon.icns with every size macOS uses. sips and iconutil ship with macOS.
+ICON_SRC="$ROOT/Resources/AppIcon.png"
+if [ -f "$ICON_SRC" ]; then
+    echo "RootBeer: making AppIcon.icns from Resources/AppIcon.png"
+    ICONSET="$ROOT/build/AppIcon.iconset"
+    rm -rf "$ICONSET"
+    mkdir -p "$ICONSET"
+    for size in 16 32 128 256 512; do
+        sips -s format png -z "$size" "$size" "$ICON_SRC" --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
+        sips -s format png -z "$((size * 2))" "$((size * 2))" "$ICON_SRC" --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
+    done
+    iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
+    rm -rf "$ICONSET"
+else
+    echo "RootBeer: no Resources/AppIcon.png; the app will use the generic icon" >&2
+fi
+
 cat > "$APP/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -30,6 +48,8 @@ cat > "$APP/Contents/Info.plist" <<EOF
     <string>RootBeer</string>
     <key>CFBundleExecutable</key>
     <string>RootBeer</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
     <string>com.local.rootbeer</string>
     <key>CFBundlePackageType</key>

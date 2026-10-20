@@ -19,7 +19,9 @@ Build the app bundle:
 open build/RootBeer.app
 ```
 
-The script runs `swift build -c release` and assembles `build/RootBeer.app`. It writes `Info.plist` (bundle id `com.local.rootbeer`), removes the toolchain's unused library search paths, and ad-hoc signs the bundle with the hardened runtime (`codesign --sign - --options runtime`). Drag the app to `/Applications` if you want to keep it.
+The script runs `swift build -c release` and assembles `build/RootBeer.app`. It writes `Info.plist` (bundle id `com.local.rootbeer`), removes the toolchain's unused library search paths, and ad-hoc signs the bundle with the hardened runtime (`codesign --sign - --options runtime`). It also turns `Resources/AppIcon.png` into the app's `AppIcon.icns`, with every size macOS needs. Drag the app to `/Applications` if you want to keep it.
+
+To change the icon, replace `Resources/AppIcon.png` with a square PNG of at least 1024×1024 that's transparent outside the icon shape, then run the script again. `Resources/AppIcon-source.png` is the original artwork, before its white background was made transparent.
 
 Because the signature is ad-hoc, macOS may refuse to open a copy that was downloaded from somewhere else. A copy built on your own Mac opens normally.
 
@@ -81,6 +83,7 @@ Never used: `--zap`, plain `brew autoremove`, `--ignore-dependencies`, `--force`
 
 ```
 Package.swift
+Resources/AppIcon.png           app icon (transparent); AppIcon-source.png is the original
 Scripts/build-app.sh            release build → build/RootBeer.app
 Sources/RootBeerCore/           no UI code; unit-tested
   Brew.swift                    all brew invocations
