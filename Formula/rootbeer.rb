@@ -5,8 +5,8 @@
 class Rootbeer < Formula
   desc "Native macOS app for safely managing Homebrew packages"
   homepage "https://github.com/PrethamMuthappa/rootbeer"
-  url "https://github.com/PrethamMuthappa/rootbeer/archive/refs/tags/v0.1.0.tar.gz"
-  sha256 "b27ac1eb24e46384f586e3510941050b417885cee865a6417424309f10e928ae"
+  url "https://github.com/PrethamMuthappa/rootbeer/archive/refs/tags/v0.1.1.tar.gz"
+  sha256 "31838836860d02590fb7c0e5199a170c630ede7a7dd0f5eaf6171f195747f439"
   license "MIT"
   head "https://github.com/PrethamMuthappa/rootbeer.git", branch: "main"
 
