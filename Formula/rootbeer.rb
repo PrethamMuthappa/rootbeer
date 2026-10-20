@@ -1,5 +1,6 @@
 # Homebrew formula for RootBeer. This repo doubles as its own tap:
 #   brew tap prethammuthappa/rootbeer https://github.com/PrethamMuthappa/rootbeer
+#   brew trust --formula prethammuthappa/rootbeer/rootbeer   # Homebrew 7 requires trusting non-official taps
 #   brew install rootbeer
 # RootBeer is built from source on the user's Mac, so it needs no Developer ID signature.
 class Rootbeer < Formula

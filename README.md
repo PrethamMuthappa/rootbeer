@@ -18,10 +18,11 @@ RootBeer is free and open source (MIT). If you find it useful, you can [buy me a
 
 ```sh
 brew tap prethammuthappa/rootbeer https://github.com/PrethamMuthappa/rootbeer
+brew trust --formula prethammuthappa/rootbeer/rootbeer
 brew install rootbeer
 ```
 
-Homebrew downloads the source of the latest release and builds RootBeer, which takes a minute or two. To open it from Launchpad and Spotlight, link it into Applications:
+Homebrew 7 only loads formulae from taps outside its official catalogue after you trust them. The middle command trusts just the RootBeer formula, not the whole tap. Homebrew then downloads the source of the latest release and builds RootBeer, which takes a minute or two. To open it from Launchpad and Spotlight, link it into Applications:
 
 ```sh
 ln -sf "$(brew --prefix rootbeer)/RootBeer.app" /Applications/RootBeer.app
