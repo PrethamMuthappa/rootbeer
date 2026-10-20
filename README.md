@@ -7,8 +7,36 @@ Swift and SwiftUI, built with Swift Package Manager. No Xcode project, no third-
 ## Requirements
 
 - macOS 14 or newer
-- Command Line Tools (`xcode-select --install`). Xcode isn't needed.
+- Command Line Tools with Swift 6 or newer (`xcode-select --install`). Xcode isn't needed.
 - Homebrew at `/opt/homebrew` (Apple silicon) or `/usr/local` (Intel)
+
+## Install
+
+RootBeer is free and open source (MIT). Both ways below build it on your own Mac. That means macOS doesn't show the "can't be verified" warning that unsigned downloads get, and no Apple Developer account is involved.
+
+### With Homebrew
+
+```sh
+brew tap prethammuthappa/rootbeer https://github.com/PrethamMuthappa/rootbeer
+brew install rootbeer
+```
+
+Homebrew downloads the source of the latest release and builds RootBeer, which takes a minute or two. To open it from Launchpad and Spotlight, link it into Applications:
+
+```sh
+ln -sf "$(brew --prefix rootbeer)/RootBeer.app" /Applications/RootBeer.app
+```
+
+`brew upgrade`, or RootBeer's own Upgrade All, keeps it up to date. To remove it, quit RootBeer and run `brew uninstall rootbeer`. RootBeer won't uninstall itself while it's running.
+
+### From source
+
+```sh
+git clone https://github.com/PrethamMuthappa/rootbeer
+cd rootbeer
+./Scripts/build-app.sh
+open build/RootBeer.app
+```
 
 ## Build and run
 
@@ -19,11 +47,11 @@ Build the app bundle:
 open build/RootBeer.app
 ```
 
-The script runs `swift build -c release` and assembles `build/RootBeer.app`. It writes `Info.plist` (bundle id `com.local.rootbeer`), removes the toolchain's unused library search paths, and ad-hoc signs the bundle with the hardened runtime (`codesign --sign - --options runtime`). It also turns `Resources/AppIcon.png` into the app's `AppIcon.icns`, with every size macOS needs. Drag the app to `/Applications` if you want to keep it.
+The script runs `swift build -c release` and assembles `build/RootBeer.app`. It writes `Info.plist` (bundle id `io.github.prethammuthappa.rootbeer`), removes the toolchain's unused library search paths, and ad-hoc signs the bundle with the hardened runtime (`codesign --sign - --options runtime`). It also turns `Resources/AppIcon.png` into the app's `AppIcon.icns`, with every size macOS needs. Drag the app to `/Applications` if you want to keep it.
 
 To change the icon, replace `Resources/AppIcon.png` with a square PNG of at least 1024×1024 that's transparent outside the icon shape, then run the script again. `Resources/AppIcon-source.png` is the original artwork, before its white background was made transparent.
 
-Because the signature is ad-hoc, macOS may refuse to open a copy that was downloaded from somewhere else. A copy built on your own Mac opens normally.
+Because the signature is ad-hoc, macOS may refuse to open a copy that was downloaded from somewhere else. A copy built on your own Mac opens normally. `ROOTBEER_VERSION` sets the version string, and `ROOTBEER_SWIFT_FLAGS` passes extra flags to `swift build`; the Homebrew formula uses it for `--disable-sandbox`.
 
 For development:
 
@@ -99,3 +127,7 @@ Tests/RootBeerTests/            Swift Testing; fixtures are trimmed real brew JS
 - **Tests use Swift Testing.** XCTest isn't included with the Command Line Tools. Swift Testing is, but SwiftPM doesn't pass its macro plugin to every compile step. `Package.swift` adds `-plugin-path` for the test target when the plugin folder exists.
 - **No `@State`.** In the macOS 27 SDK, SwiftUI's `@State` is a macro whose plugin only ships with Xcode. RootBeer stores `State(initialValue:)` explicitly instead, which works with every SDK.
 - **Harmless warning.** `ld: warning: search path '…/Developer/Library/Frameworks' not found` is a Command Line Tools quirk.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

@@ -222,6 +222,24 @@ final class AppModel {
         inventory.packages.first { $0.kind == .formula && $0.name == name }
     }
 
+    /// True for the formula this running copy of RootBeer was installed from (`brew install rootbeer`).
+    /// Uninstalling it from inside the app would delete the app while it runs.
+    func isRootBeerItself(_ package: Package) -> Bool {
+        guard package.kind == .formula, let runner else { return false }
+        let app = Bundle.main.bundleURL.resolvingSymlinksInPath().path
+        return app.hasPrefix(runner.prefix + "/Cellar/\(package.name)/")
+    }
+
+    /// Shown instead of an uninstall sheet for RootBeer itself.
+    private func refuseSelfUninstall(_ package: Package) {
+        showLog = true
+        outcome = Outcome(
+            title: "Uninstall \(package.name)", succeeded: false,
+            detail: "This is the RootBeer you're running, so it can't remove itself. Quit RootBeer, then run this in Terminal:",
+            terminalCommand: runner?.terminalCommand(for: .uninstall(package))
+        )
+    }
+
     // MARK: Loading (read-only)
 
     /// Reloads the package list. Ignored while an operation runs; the operation reloads itself.
@@ -304,6 +322,10 @@ final class AppModel {
 
     func requestUninstall(_ package: Package) {
         guard !isBusy else { return }
+        guard !isRootBeerItself(package) else {
+            refuseSelfUninstall(package)
+            return
+        }
         switch package.kind {
         case .cask: sheet = .uninstallCask(package)
         case .formula: sheet = .uninstallFormula(UninstallDraft(target: package, graph: DependencyGraph(inventory.packages)))
@@ -413,6 +435,10 @@ final class AppModel {
             }
             guard !plan.isBlocked || force else {
                 return Outcome(title: title, succeeded: false, detail: "Other packages still depend on this. Nothing was removed.")
+            }
+            if let selfID = plan.uninstallOrder.first(where: { graph.packages[$0].map(isRootBeerItself) ?? false }) {
+                return Outcome(title: title, succeeded: false,
+                               detail: "The plan includes \(graph.name(selfID)), which is the RootBeer you're running. Nothing was removed.")
             }
             let name = graph.name
             appendLog(.info, "Plan: uninstall \(plan.roots.map(name).joined(separator: ", "))"

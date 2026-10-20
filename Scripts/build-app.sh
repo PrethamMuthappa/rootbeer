@@ -7,12 +7,17 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 APP="$ROOT/build/RootBeer.app"
+BUNDLE_ID="io.github.prethammuthappa.rootbeer"
 VERSION="${ROOTBEER_VERSION:-0.1.0}"
-BUILD_NUMBER="$(git rev-list --count HEAD 2>/dev/null || echo 1)"
+# A source tarball (e.g. when Homebrew builds RootBeer) has no git history; fall back to 1.
+BUILD_NUMBER="${ROOTBEER_BUILD:-$(git rev-list --count HEAD 2>/dev/null || echo 1)}"
+# Extra `swift build` flags, e.g. --disable-sandbox: Homebrew builds inside its own sandbox and
+# SwiftPM can't nest another one. (The odd expansion below keeps bash 3.2 happy with an empty array.)
+read -r -a SWIFT_FLAGS <<< "${ROOTBEER_SWIFT_FLAGS:-}"
 
 echo "RootBeer: building release binary…"
-swift build -c release --product RootBeer
-BIN_DIR="$(swift build -c release --show-bin-path)"
+swift build -c release --product RootBeer ${SWIFT_FLAGS[@]+"${SWIFT_FLAGS[@]}"}
+BIN_DIR="$(swift build -c release --show-bin-path ${SWIFT_FLAGS[@]+"${SWIFT_FLAGS[@]}"})"
 
 echo "RootBeer: assembling $APP"
 rm -rf "$APP"
@@ -51,7 +56,7 @@ cat > "$APP/Contents/Info.plist" <<EOF
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
-    <string>com.local.rootbeer</string>
+    <string>$BUNDLE_ID</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -85,7 +90,7 @@ fi
 
 # Hardened runtime: blocks DYLD_* injection and unsigned libraries. Required for notarization too.
 echo "RootBeer: ad-hoc signing (hardened runtime)…"
-codesign --force --sign - --options runtime --identifier com.local.rootbeer "$APP"
+codesign --force --sign - --options runtime --identifier "$BUNDLE_ID" "$APP"
 codesign --verify --strict "$APP"
 
 echo "RootBeer: built $APP"
